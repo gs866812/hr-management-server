@@ -109,8 +109,10 @@ async function run() {
         // ************************************************************************************************
         // ************************************************************************************************
         const database = client.db("hrManagement");
+        const userCollections = database.collection("userList");
         const expenseCollections = database.collection("expenseList");
         const categoryCollections = database.collection("categoryList");
+        const localOrderCollections = database.collection("localOrderList");
         // ************************************************************************************************
         // ************************************************************************************************
         app.post("/addExpense", async (req, res) => {
@@ -132,6 +134,41 @@ async function run() {
             }
         });
         // ************************************************************************************************
+        app.post("/createLocalOrder", async (req, res) => {
+            try {
+                const orderData = req.body;
+                const addOrder = await localOrderCollections.insertOne(orderData);
+
+                res.send(addOrder);
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to add expense', error: error.message }); // Include error message in response
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getCurrentUser", verifyToken, async (req, res) => {
+            try {
+                const requestedEmail = req.query.userEmail;  // If this is a separate check
+                const tokenEmail = req.user.email;
+                console.log(requestedEmail);
+
+                if (requestedEmail !== tokenEmail) {
+                    return res.status(403).send({ message: "Forbidden Access" }); // 403 is more appropriate here
+                }
+
+                const user = await userCollections.findOne({ email: tokenEmail });
+
+                if (!user) {
+                    return res.status(404).send({ message: "User not found" });
+                }
+
+                res.send(user);
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch user' });
+            }
+        });
+        // ************************************************************************************************
         app.get("/getExpense", verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
@@ -149,40 +186,66 @@ async function run() {
             }
         });
         // ************************************************************************************************
+        app.get("/getLocalOrder", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const result = await localOrderCollections.find({}).sort({ _id: -1 }).toArray();
+                res.send(result);
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch expense' });
+            }
+        });
+        // ************************************************************************************************
         app.put("/editExpense/:id", async (req, res) => {
             try {
                 const { id } = req.params;
                 const { userName, expenseDate, expenseName, expenseCategory, expenseAmount, expenseStatus, expenseNote } = req.body;
-
+        
                 if (!ObjectId.isValid(id)) {
                     return res.status(400).json({ message: 'Invalid expense ID' });
                 }
-
-                const result = await expenseCollections.updateOne(
-                    { _id: new ObjectId(id) }, // Convert id to ObjectId
-                    {
-                        $set: { // Use $set to update specific fields
-                            userName,
-                            expenseDate,
-                            expenseName,
-                            expenseCategory,
-                            expenseAmount,
-                            expenseStatus,
-                            expenseNote,
-                        },
-                    }
-                );
-
-                if (result.modifiedCount === 0) {
+        
+                const existingExpense = await expenseCollections.findOne({ _id: new ObjectId(id) });
+        
+                if (!existingExpense) {
                     return res.status(404).json({ message: 'Expense not found' });
                 }
+        
+                let updateData = {};
+        
+                if (userName !== existingExpense.userName) updateData.userName = userName;
+                if (expenseDate !== existingExpense.expenseDate) updateData.expenseDate = expenseDate;
+                if (expenseName !== existingExpense.expenseName) updateData.expenseName = expenseName;
+                if (expenseCategory !== existingExpense.expenseCategory) updateData.expenseCategory = expenseCategory;
+                if (expenseAmount !== existingExpense.expenseAmount) updateData.expenseAmount = expenseAmount;
+                if (expenseStatus !== existingExpense.expenseStatus) updateData.expenseStatus = expenseStatus;
+                if (expenseNote !== existingExpense.expenseNote) updateData.expenseNote = expenseNote;
+        
+                if (Object.keys(updateData).length === 0) {
+                    return res.status(200).json({ message: 'No changes found' }); // Or 204 No Content
+                }
+        
+                const result = await expenseCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: updateData }
+                );
+        
+                if (result.modifiedCount === 0) {
+                    return res.status(404).json({ message: 'No changes found' }); // This should not happen now
+                }
 
-                res.status(200).json({ message: 'success'});
+                res.status(200).json({ message: 'Expense updated successfully' });
+        
             } catch (error) {
                 console.error("Error updating expense:", error);
                 res.status(500).json({ message: 'Server error' });
             }
-
         });
         // ************************************************************************************************
         console.log(
