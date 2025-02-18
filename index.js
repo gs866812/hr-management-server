@@ -113,6 +113,7 @@ async function run() {
         const expenseCollections = database.collection("expenseList");
         const categoryCollections = database.collection("categoryList");
         const localOrderCollections = database.collection("localOrderList");
+        const clientCollections = database.collection("clientList");
         // ************************************************************************************************
         // ************************************************************************************************
         app.post("/addExpense", async (req, res) => {
@@ -137,6 +138,19 @@ async function run() {
         app.post("/createLocalOrder", async (req, res) => {
             try {
                 const orderData = req.body;
+                const id = req.body.clientID;
+
+                if(id){
+                    await clientCollections.updateOne(
+                        { clientID: id },
+                        {
+                          $push: {
+                            orderHistory: orderData,
+                          },
+                        }
+                      );
+                }
+
                 const addOrder = await localOrderCollections.insertOne(orderData);
 
                 res.send(addOrder);
@@ -199,6 +213,24 @@ async function run() {
                 res.send(result);
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch expense' });
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getClientID", verifyToken, async (req, res) => {
+
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const result = await clientCollections.find().toArray();
+                res.send(result);
+                
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch client' });
             }
         });
         // ************************************************************************************************
