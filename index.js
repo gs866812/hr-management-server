@@ -140,15 +140,15 @@ async function run() {
                 const orderData = req.body;
                 const id = req.body.clientID;
 
-                if(id){
+                if (id) {
                     await clientCollections.updateOne(
                         { clientID: id },
                         {
-                          $push: {
-                            orderHistory: orderData,
-                          },
+                            $push: {
+                                orderHistory: orderData,
+                            },
                         }
-                      );
+                    );
                 }
 
                 const addOrder = await localOrderCollections.insertOne(orderData);
@@ -160,17 +160,72 @@ async function run() {
             }
         });
         // ************************************************************************************************
+        app.put("/orderStatusChange/:orderId", async (req, res) => {
+            try {
+                const id = req.params.orderId;
+
+                // Check if the order exists
+                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+
+                if (!isID) {
+                    return res.status(404).json({ message: "Order not found" });
+                }
+
+                // Update the order status to "In-progress"
+                const result = await localOrderCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { orderStatus: "In-progress" }}
+                );
+
+                res.send(result);
+            } catch (error) {
+                console.error(error);
+                res.status(500).json({ message: "Failed to update order status" });
+            }
+        });
+        // ************************************************************************************************
+        app.put("/orderStatusHold/:orderId", async (req, res) => {
+            try {
+                const id = req.params.orderId;
+                const { completeTime, lastUpdated } = req.body; // Time when hold was triggered
+
+                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+
+                if (!isID) {
+                    return res.status(404).json({ message: "Order not found" });
+                }
+
+                const result = await localOrderCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    {
+                        $set: {
+                            orderStatus: "Hold",
+                            completeTime,
+                            lastUpdated,
+                        }
+                    }
+                );
+
+                res.send(result);
+            } catch (error) {
+                console.error(error);
+                res.status(500).json({ message: "Failed to update order status" });
+            }
+        });
+
+
+        // ************************************************************************************************
         app.get("/getCurrentUser", verifyToken, async (req, res) => {
             try {
                 const requestedEmail = req.query.userEmail;  // If this is a separate check
                 const tokenEmail = req.user.email;
-                console.log(requestedEmail);
+
 
                 if (requestedEmail !== tokenEmail) {
                     return res.status(403).send({ message: "Forbidden Access" }); // 403 is more appropriate here
                 }
 
-                const user = await userCollections.findOne({ email: tokenEmail });
+                const user = await userCollections.findOne({ email: requestedEmail });
 
                 if (!user) {
                     return res.status(404).send({ message: "User not found" });
@@ -215,6 +270,24 @@ async function run() {
                 res.status(500).json({ message: 'Failed to fetch expense' });
             }
         });
+
+        // ************************************************************************************************
+        app.get("/getSingleOrder/:orderId", verifyToken, async (req, res) => {
+            try {
+                const id = req.params.orderId;
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const result = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                res.send(result);
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch expense' });
+            }
+        });
         // ************************************************************************************************
         app.get("/getClientID", verifyToken, async (req, res) => {
 
@@ -228,7 +301,7 @@ async function run() {
 
                 const result = await clientCollections.find().toArray();
                 res.send(result);
-                
+
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch client' });
             }
@@ -238,19 +311,19 @@ async function run() {
             try {
                 const { id } = req.params;
                 const { userName, expenseDate, expenseName, expenseCategory, expenseAmount, expenseStatus, expenseNote } = req.body;
-        
+
                 if (!ObjectId.isValid(id)) {
                     return res.status(400).json({ message: 'Invalid expense ID' });
                 }
-        
+
                 const existingExpense = await expenseCollections.findOne({ _id: new ObjectId(id) });
-        
+
                 if (!existingExpense) {
                     return res.status(404).json({ message: 'Expense not found' });
                 }
-        
+
                 let updateData = {};
-        
+
                 if (userName !== existingExpense.userName) updateData.userName = userName;
                 if (expenseDate !== existingExpense.expenseDate) updateData.expenseDate = expenseDate;
                 if (expenseName !== existingExpense.expenseName) updateData.expenseName = expenseName;
@@ -258,22 +331,22 @@ async function run() {
                 if (expenseAmount !== existingExpense.expenseAmount) updateData.expenseAmount = expenseAmount;
                 if (expenseStatus !== existingExpense.expenseStatus) updateData.expenseStatus = expenseStatus;
                 if (expenseNote !== existingExpense.expenseNote) updateData.expenseNote = expenseNote;
-        
+
                 if (Object.keys(updateData).length === 0) {
                     return res.status(200).json({ message: 'No changes found' }); // Or 204 No Content
                 }
-        
+
                 const result = await expenseCollections.updateOne(
                     { _id: new ObjectId(id) },
                     { $set: updateData }
                 );
-        
+
                 if (result.modifiedCount === 0) {
                     return res.status(404).json({ message: 'No changes found' }); // This should not happen now
                 }
 
                 res.status(200).json({ message: 'Expense updated successfully' });
-        
+
             } catch (error) {
                 console.error("Error updating expense:", error);
                 res.status(500).json({ message: 'Server error' });
