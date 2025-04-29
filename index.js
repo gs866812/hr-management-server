@@ -25,6 +25,7 @@ app.use(express.json());
 const TOKEN_SECRET = process.env.TOKEN_SECRET;
 // ************************************************************************************************
 const uri = process.env.MONGO_URI;
+
 const client = new MongoClient(uri, {
     serverApi: {
         version: ServerApiVersion.v1,
@@ -106,32 +107,122 @@ app.post('/logout', (req, res) => {
 
 async function run() {
     try {
-        // ************************************************************************************************
-        // ************************************************************************************************
+        // ******************************************************************************************
+        // ******************************************************************************************
         const database = client.db("hrManagement");
         const userCollections = database.collection("userList");
         const expenseCollections = database.collection("expenseList");
         const categoryCollections = database.collection("categoryList");
         const localOrderCollections = database.collection("localOrderList");
         const clientCollections = database.collection("clientList");
-        // ************************************************************************************************
-        // ************************************************************************************************
+        const hrBalanceCollections = database.collection("hrBalanceList");
+        const hrTransactionCollections = database.collection("hrTransactionList");
+        const mainBalanceCollections = database.collection("mainBalanceList");
+        const mainTransactionCollections = database.collection("mainTransactionList");
+        const employeeCollections = database.collection("employeeList");
+        const earningsCollections = database.collection("earningsList");
+        // *******************************************************************************************
+        // *******************************************************************************************
         app.post("/addExpense", async (req, res) => {
             try {
                 const expenseData = req.body;
-                const addExpense = await expenseCollections.insertOne(expenseData);
-
-                // Check if the category already exists
+                const mail = req.body.userMail;
                 const existingCategory = await categoryCollections.findOne({ expenseCategory: expenseData.expenseCategory });
 
                 if (!existingCategory) {
                     await categoryCollections.insertOne({ expenseCategory: expenseData.expenseCategory });
                 }
-                res.send(addExpense);
+                const availableBalance = await hrBalanceCollections.findOne();
+                const expenseBalance = expenseData.expenseAmount;
+
+                const userRole = await userCollections.findOne({ email: mail });
+
+                if (userRole.role == "hr_admin") {
+                    if (availableBalance.balance >= expenseBalance) {
+                        const addExpense = await expenseCollections.insertOne(expenseData);
+                        await hrBalanceCollections.updateOne(
+                            {},
+                            {
+                                $inc: { balance: - expenseBalance }
+                            });
+                        res.send(addExpense);
+                    } else {
+                        res.json('Insufficient balance');
+                    }
+                } else {
+                    const addExpense = await expenseCollections.insertOne(expenseData);
+                    res.send(addExpense);
+                }
 
             } catch (error) {
-                console.error("Error adding expense:", error); // Log the error for debugging
-                res.status(500).json({ message: 'Failed to add expense', error: error.message }); // Include error message in response
+                console.error("Error adding expense:", error);
+                res.status(500).json({ message: 'Failed to add expense', error: error.message });
+            }
+        });
+        // ************************************************************************************************
+        app.post("/addHrBalance", async (req, res) => {
+            try {
+                const { parseValue, note, date } = req.body;
+
+                const availableBalance = await mainBalanceCollections.findOne();
+
+                if (availableBalance.mainBalance >= parseValue) {
+                    await hrTransactionCollections.insertOne({ value: parseValue, note, date, type: "In" });
+
+                    let existingBalance = await hrBalanceCollections.findOne();
+
+                    if (existingBalance) {
+                        await hrBalanceCollections.updateOne(
+                            {},
+                            {
+                                $inc: { balance: parseValue }
+                            });
+                    } else {
+                        // Insert a new document if no balance exists
+                        await hrBalanceCollections.insertOne({ balance: parseValue });
+                    }
+
+                    // deduct the amount from main balance 
+                    await mainBalanceCollections.updateOne(
+                        {},
+                        {
+                            $inc: { mainBalance: -parseValue }
+                        });
+
+                    res.status(200).json({ message: "success" });
+                } else {
+                    res.json({ message: "Not enough funds" });
+                }
+
+
+            } catch (error) {
+                res.status(500).json({ message: "Failed to add balance", error: error.message });
+            }
+        });
+
+        // ************************************************************************************************
+        app.post("/addMainBalance", async (req, res) => {
+            try {
+                const { parseValue, note, date } = req.body; // Assuming amount is sent in the request body
+                await mainTransactionCollections.insertOne({ parseValue, note, date });
+
+                let existingBalance = await mainBalanceCollections.findOne();
+
+                if (existingBalance) {
+                    // Update the first existing document by incrementing the balance
+                    await mainBalanceCollections.updateOne(
+                        {},
+                        {
+                            $inc: { mainBalance: parseValue }
+                        });
+                } else {
+                    // Insert a new document if no balance exists
+                    await mainBalanceCollections.insertOne({ mainBalance: parseValue });
+                }
+
+                res.status(200).json({ message: "Balance added successfully" });
+            } catch (error) {
+                res.status(500).json({ message: "Failed to add balance", error: error.message });
             }
         });
         // ************************************************************************************************
@@ -160,6 +251,107 @@ async function run() {
             }
         });
         // ************************************************************************************************
+        app.post('/registerEmployees', async (req, res) => {
+            try {
+                const employeeData = req.body;
+                const email = req.body.email;
+                // console.log(employeeData);
+
+                await userCollections.insertOne({
+                    email: email,
+                    role: "employee",
+                    userName: "",
+                    profilePic: "",
+                });
+                const result = await employeeCollections.insertOne(employeeData);
+
+
+                res.send(result);
+            } catch (error) {
+                console.error('Error saving employee:', error);
+                res.status(500).json({
+                    success: false,
+                    message: 'Failed to register employee',
+                    error: error.message
+                });
+            }
+        });
+        // ************************************************************************************************
+        app.post('/addEarnings', async (req, res) => {
+            try {
+                const earningsData = req.body;
+                const date = new Date();
+                const clientID = req.body.clientId;
+                const fullData = { ...earningsData, date: moment(date).format("DD-MM-YYYY") };
+                const earningsAmount = req.body.convertedBdt;
+                const result = await earningsCollections.insertOne(fullData);
+
+
+                // add earnings to main balance
+                await mainBalanceCollections.updateOne(
+                    {},
+                    {
+                        $inc: { mainBalance: earningsAmount }
+                    });
+
+                // Push fullData into paymentHistory array of the matched client
+                console.log('Client ID:', clientID);
+
+                await clientCollections.updateOne(
+                    { clientID: clientID },
+                    {
+                        $push: { paymentHistory: fullData }
+                    }
+                );
+
+                res.send(result);
+            } catch (error) {
+                console.error('Error saving earnings:', error);
+                res.status(500).json({
+                    success: false,
+                    message: 'Failed to add earnings',
+                    error: error.message
+                });
+            }
+        });
+        // ************************************************************************************************
+        app.post('/addClient', async (req, res) => {
+            try {
+                const { clientId, country } = req.body;
+
+                if (!clientId || !country) {
+                    return res.status(400).json({ message: 'Client ID and Country are required.' });
+                }
+
+                const existingClient = await clientCollections.findOne({clientID: clientId });
+
+                if (existingClient) {
+                    return res.json({ message: 'This ID already exists' });
+                }
+
+                const result = await clientCollections.insertOne({ 
+                    clientID: clientId,
+                    country: country,
+                    orderHistory: [],
+                    paymentHistory: [],
+                 });
+
+                res.status(201).json({ message: 'Client added successfully', insertedId: result.insertedId });
+
+            } catch (error) {
+                console.error('Error adding client:', error);
+                res.status(500).json({ message: 'Internal server error' });
+            }
+        });
+
+        // ************************************************************************************************
+
+
+
+
+
+
+
         app.put("/orderStatusChange/:orderId", async (req, res) => {
             try {
                 const id = req.params.orderId;
@@ -174,7 +366,7 @@ async function run() {
                 // Update the order status to "In-progress"
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
-                    { $set: { orderStatus: "In-progress" }}
+                    { $set: { orderStatus: "In-progress" } }
                 );
 
                 res.send(result);
@@ -184,6 +376,84 @@ async function run() {
             }
         });
         // ************************************************************************************************
+        app.put("/orderStatusDelivered/:orderId", async (req, res) => {
+            try {
+                const id = req.params.orderId;
+
+                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+
+                if (!isID) {
+                    return res.status(404).json({ message: "Order not found" });
+                }
+
+                const result = await localOrderCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    {
+                        $set: {
+                            orderStatus: "Delivered",
+                        }
+                    }
+                );
+
+                res.send(result);
+            } catch (error) {
+                console.error(error);
+                res.status(500).json({ message: "Failed to update order status" });
+            }
+        });
+        // *****************************************************************************************
+        app.put("/modifyOrderToInitial/:orderId", async (req, res) => {
+            try {
+                const id = req.params.orderId;
+
+                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+
+                if (!isID) {
+                    return res.status(404).json({ message: "Order not found" });
+                }
+
+                const result = await localOrderCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    {
+                        $set: {
+                            orderStatus: "Reviewing",
+                        }
+                    }
+                );
+
+                res.send(result);
+            } catch (error) {
+                console.error(error);
+                res.status(500).json({ message: "Failed to update order status" });
+            }
+        });
+        // *****************************************************************************************
+        app.put("/orderStatusQC/:orderId", async (req, res) => {
+            try {
+                const id = req.params.orderId;
+
+                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+
+                if (!isID) {
+                    return res.status(404).json({ message: "Order not found" });
+                }
+
+                const result = await localOrderCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    {
+                        $set: {
+                            orderStatus: "Ready to QC",
+                        }
+                    }
+                );
+
+                res.send(result);
+            } catch (error) {
+                console.error(error);
+                res.status(500).json({ message: "Failed to update order status" });
+            }
+        });
+        // *****************************************************************************************
         app.put("/orderStatusHold/:orderId", async (req, res) => {
             try {
                 const id = req.params.orderId;
@@ -212,6 +482,113 @@ async function run() {
                 res.status(500).json({ message: "Failed to update order status" });
             }
         });
+        // *****************************************************************************************
+
+        app.put("/editExpense/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+                const {
+                    userName,
+                    expenseDate,
+                    expenseName,
+                    expenseCategory,
+                    expenseAmount,
+                    expenseStatus,
+                    expenseNote
+                } = req.body;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ message: "Invalid expense ID" });
+                }
+
+                // Fetch existing expense
+                const existingExpense = await expenseCollections.findOne({ _id: new ObjectId(id) });
+
+                if (!existingExpense) {
+                    return res.status(404).json({ message: "Expense not found" });
+                }
+
+                // Prepare update object
+                let updateData = {};
+
+                if (expenseDate && expenseDate !== existingExpense.expenseDate) updateData.expenseDate = expenseDate;
+                if (expenseName && expenseName !== existingExpense.expenseName) updateData.expenseName = expenseName;
+                if (expenseCategory && expenseCategory !== existingExpense.expenseCategory) updateData.expenseCategory = expenseCategory;
+                if (expenseAmount && expenseAmount !== existingExpense.expenseAmount) updateData.expenseAmount = expenseAmount;
+                if (expenseStatus && expenseStatus !== existingExpense.expenseStatus) updateData.expenseStatus = expenseStatus;
+                if (expenseNote && expenseNote !== existingExpense.expenseNote) updateData.expenseNote = expenseNote;
+
+                // If no updates are needed
+                if (Object.keys(updateData).length === 0) {
+                    return res.status(200).json({ message: "No changes detected" });
+                }
+
+                // Update expense record
+                const result = await expenseCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: updateData }
+                );
+
+                if (result.modifiedCount === 0) {
+                    return res.status(400).json({ message: "Failed to update expense" });
+                }
+
+                // Update balance only if expenseAmount has changed
+                if (expenseAmount && expenseAmount !== existingExpense.expenseAmount) {
+                    const balanceChange = existingExpense.expenseAmount - expenseAmount;
+
+                    await hrBalanceCollections.updateOne(
+                        {},
+                        { $inc: { balance: balanceChange } }
+                    );
+                }
+
+                res.status(200).json({ message: "Expense updated successfully" });
+
+            } catch (error) {
+                console.error("Error updating expense:", error);
+                res.status(500).json({ message: "Server error" });
+            }
+        });
+
+        // *****************************************************************************************
+        app.put("/returnHrBalance", async (req, res) => {
+            try {
+                const { parseValue, note, date } = req.body;
+
+                const availableBalance = await hrBalanceCollections.findOne();
+
+                if (availableBalance.balance >= parseValue) {
+                    await hrBalanceCollections.updateOne(
+                        {},
+                        {
+                            $inc: { balance: -parseValue }
+                        });
+
+
+
+
+                    // add the amount in main balance 
+                    await mainBalanceCollections.updateOne(
+                        {},
+                        {
+                            $inc: { mainBalance: parseValue }
+                        });
+
+                    await hrTransactionCollections.insertOne({ value: parseValue, note, date, type: "Out" });
+
+                    res.status(200).json({ message: "success" });
+                } else {
+                    res.json({ message: "unsuccess" });
+                }
+
+
+            } catch (error) {
+                res.status(500).json({ message: "Failed to add balance", error: error.message });
+            }
+        });
+
+
 
 
         // ************************************************************************************************
@@ -240,32 +617,128 @@ async function run() {
         // ************************************************************************************************
         app.get("/getExpense", verifyToken, async (req, res) => {
             try {
-                const userMail = req.query.userEmail;
-                const email = req.user.email;
-
-                if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                if (!req.user || !req.user.email) {
+                    return res.status(401).send({ message: "Unauthorized Access" });
                 }
 
-                const result = await expenseCollections.find({}).sort({ _id: -1 }).toArray();
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+                if (userMail !== email) {
+                    return res.status(403).send({ message: "Forbidden Access" });
+                }
+
+                const page = parseInt(req.query.page) || 1;
+                const size = parseInt(req.query.size) || 10;
+                const search = req.query.search || "";
+                const disablePagination = req.query.disablePagination === "true";
+
+                let numericSearch = parseFloat(search);
+                numericSearch = isNaN(numericSearch) ? null : numericSearch;
+
+                const query = search
+                    ? {
+                        $or: [
+                            { userName: { $regex: new RegExp(search, "i") } },
+                            { expenseName: { $regex: new RegExp(search, "i") } },
+                            { expenseCategory: { $regex: new RegExp(search, "i") } },
+                            { expenseStatus: { $regex: new RegExp(search, "i") } },
+                            { expenseNote: { $regex: new RegExp(search, "i") } },
+                            { expenseDate: { $regex: new RegExp(search, "i") } },
+                            ...(numericSearch !== null ? [{ expenseAmount: numericSearch }] : []),
+                        ],
+                    }
+                    : {};
+
+                if (!expenseCollections) {
+                    return res.status(500).json({ message: "Database connection issue" });
+                }
+
+                let expense;
+                if (disablePagination) {
+                    expense = await expenseCollections
+                        .find(query)
+                        .sort({ _id: -1 })
+                        .toArray();
+                } else {
+                    expense = await expenseCollections
+                        .find(query)
+                        .skip((page - 1) * size)
+                        .limit(size)
+                        .sort({ _id: -1 })
+                        .toArray();
+                }
+
+                const count = await expenseCollections.countDocuments(query);
                 const category = await categoryCollections.find({}).toArray();
-                res.send({ result, category });
+                res.send({ expense, count, category });
+
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch expense' });
+                console.error("Error fetching expenses:", error);
+                res.status(500).json({ message: 'Failed to fetch expense', error: error.message });
             }
         });
+
         // ************************************************************************************************
         app.get("/getLocalOrder", verifyToken, async (req, res) => {
             try {
-                const userMail = req.query.userEmail;
-                const email = req.user.email;
-
-                if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                if (!req.user || !req.user.email) {
+                    return res.status(401).send({ message: "Unauthorized Access" });
                 }
 
-                const result = await localOrderCollections.find({}).sort({ _id: -1 }).toArray();
-                res.send(result);
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+                if (userMail !== email) {
+                    return res.status(403).send({ message: "Forbidden Access" });
+                }
+
+                const page = parseInt(req.query.page) || 1;
+                const size = parseInt(req.query.size) || 10;
+                const search = req.query.search || "";
+
+                const disablePagination = req.query.disablePagination === "true";
+
+                let numericSearch = parseFloat(search);
+                numericSearch = isNaN(numericSearch) ? null : numericSearch;
+
+                const query = search
+                    ? {
+                        $or: [
+                            { userName: { $regex: new RegExp(search, "i") } },
+                            { clientID: { $regex: new RegExp(search, "i") } },
+                            { orderName: { $regex: new RegExp(search, "i") } },
+                            { orderQTY: { $regex: new RegExp(search, "i") } },
+                            { orderStatus: { $regex: new RegExp(search, "i") } },
+                            ...(numericSearch !== null ?
+                                [
+                                    { orderPrice: numericSearch },
+                                ]
+                                : []),
+                        ],
+                    }
+                    : {};
+
+                if (!localOrderCollections) {
+                    return res.status(500).json({ message: "Database connection issue" });
+                }
+
+                let orders;
+                if (disablePagination) {
+                    orders = await localOrderCollections
+                        .find(query)
+                        .sort({ _id: -1 })
+                        .toArray();
+                } else {
+                    orders = await localOrderCollections
+                        .find(query)
+                        .skip((page - 1) * size)
+                        .limit(size)
+                        .sort({ _id: -1 })
+                        .toArray();
+                }
+
+                const count = await localOrderCollections.countDocuments(query);
+                // const result = await localOrderCollections.find({}).sort({ _id: -1 }).toArray();
+                res.send({ orders, count });
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch expense' });
             }
@@ -307,52 +780,86 @@ async function run() {
             }
         });
         // ************************************************************************************************
-        app.put("/editExpense/:id", async (req, res) => {
+        app.get("/getMainBalance", verifyToken, async (req, res) => {
+
             try {
-                const { id } = req.params;
-                const { userName, expenseDate, expenseName, expenseCategory, expenseAmount, expenseStatus, expenseNote } = req.body;
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
 
-                if (!ObjectId.isValid(id)) {
-                    return res.status(400).json({ message: 'Invalid expense ID' });
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
                 }
 
-                const existingExpense = await expenseCollections.findOne({ _id: new ObjectId(id) });
-
-                if (!existingExpense) {
-                    return res.status(404).json({ message: 'Expense not found' });
-                }
-
-                let updateData = {};
-
-                if (userName !== existingExpense.userName) updateData.userName = userName;
-                if (expenseDate !== existingExpense.expenseDate) updateData.expenseDate = expenseDate;
-                if (expenseName !== existingExpense.expenseName) updateData.expenseName = expenseName;
-                if (expenseCategory !== existingExpense.expenseCategory) updateData.expenseCategory = expenseCategory;
-                if (expenseAmount !== existingExpense.expenseAmount) updateData.expenseAmount = expenseAmount;
-                if (expenseStatus !== existingExpense.expenseStatus) updateData.expenseStatus = expenseStatus;
-                if (expenseNote !== existingExpense.expenseNote) updateData.expenseNote = expenseNote;
-
-                if (Object.keys(updateData).length === 0) {
-                    return res.status(200).json({ message: 'No changes found' }); // Or 204 No Content
-                }
-
-                const result = await expenseCollections.updateOne(
-                    { _id: new ObjectId(id) },
-                    { $set: updateData }
-                );
-
-                if (result.modifiedCount === 0) {
-                    return res.status(404).json({ message: 'No changes found' }); // This should not happen now
-                }
-
-                res.status(200).json({ message: 'Expense updated successfully' });
+                const result = await mainBalanceCollections.find().toArray();
+                res.send(result[0]);
 
             } catch (error) {
-                console.error("Error updating expense:", error);
-                res.status(500).json({ message: 'Server error' });
+                res.status(500).json({ message: 'Failed to fetch balance' });
             }
         });
         // ************************************************************************************************
+        app.get("/getHrBalance", verifyToken, async (req, res) => {
+
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const result = await hrBalanceCollections.find().toArray();
+                const balance = result[0].balance;
+                const hrTransaction = await hrTransactionCollections.find().toArray();
+
+                const expense = await expenseCollections.find().toArray(); //send expense here to decrease API call (in context API)
+
+                res.send({ balance, hrTransaction, expense });
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch balance' });
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getClient", verifyToken, async (req, res) => {
+
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const result = await clientCollections.find().sort({_id: -1}).toArray();
+
+                res.send(result);
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch balance' });
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getEarnings", verifyToken, async (req, res) => {
+
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const result = await earningsCollections.find().toArray();
+
+                res.send(result);
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch balance' });
+            }
+        });
+        // ************************************************************************************************
+
         console.log(
             "Pinged your deployment. You successfully connected to MongoDB!"
         );
