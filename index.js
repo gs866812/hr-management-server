@@ -7,14 +7,19 @@ const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const moment = require("moment");
 require('dotenv').config();
+const multer = require('multer');
+const { uploadToCloudinary } = require("./uploadPhoto");
+
 
 const app = express();
+const upload = multer({ storage: multer.memoryStorage() });
+
 const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors(
     {
-        origin: ["http://localhost:5173",],
+        origin: ["http://localhost:5173", "https://app.webbriks.com"],
         credentials: true,
     }
 ));
@@ -323,18 +328,18 @@ async function run() {
                     return res.status(400).json({ message: 'Client ID and Country are required.' });
                 }
 
-                const existingClient = await clientCollections.findOne({clientID: clientId });
+                const existingClient = await clientCollections.findOne({ clientID: clientId });
 
                 if (existingClient) {
                     return res.json({ message: 'This ID already exists' });
                 }
 
-                const result = await clientCollections.insertOne({ 
+                const result = await clientCollections.insertOne({
                     clientID: clientId,
                     country: country,
                     orderHistory: [],
                     paymentHistory: [],
-                 });
+                });
 
                 res.status(201).json({ message: 'Client added successfully', insertedId: result.insertedId });
 
@@ -831,7 +836,7 @@ async function run() {
                     return res.status(401).send({ message: "Forbidden Access" });
                 }
 
-                const result = await clientCollections.find().sort({_id: -1}).toArray();
+                const result = await clientCollections.find().sort({ _id: -1 }).toArray();
 
                 res.send(result);
 
@@ -856,6 +861,59 @@ async function run() {
 
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch balance' });
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getEmployee", verifyToken, async (req, res) => {
+
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const findEmployee = await employeeCollections.findOne({ email: userMail });
+
+                // const result = await earningsCollections.find().toArray();
+
+                res.send(findEmployee);
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch balance' });
+            }
+        });
+
+        // ************************************************************************************************
+        app.post('/uploadProfilePic', upload.single('image'), async (req, res) => {
+            try {
+                const userEmail = req.body.email;
+                const fileBuffer = req.file?.buffer;
+
+                console.log("File", req.file);
+                console.log("Body", req.body);
+
+
+                if (!fileBuffer || !userEmail) {
+                    return res.status(400).send({ error: 'Missing file or email' });
+                }
+
+                const imageUrl = await uploadToCloudinary(fileBuffer);
+
+                const updateResult = await employeeCollections.updateOne(
+                    { email: userEmail },
+                    { $set: { photo: imageUrl } }
+                );
+
+                if (updateResult.modifiedCount === 0) {
+                    return res.status(404).send({ error: 'Employee not found' });
+                }
+
+                res.send({ message: 'Image uploaded successfully', url: imageUrl });
+            } catch (error) {
+                console.error('❌ Upload error:', error);
+                res.status(500).send({ error: 'Image upload failed' });
             }
         });
         // ************************************************************************************************
