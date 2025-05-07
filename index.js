@@ -596,6 +596,32 @@ async function run() {
 
 
 
+
+        // ******************************************************************************************
+        app.patch('/updateEmployee/:email', async (req, res) => {
+            const { email } = req.params;
+            const updateData = req.body;
+
+            try {
+                const result = await employeeCollections.updateOne(
+                    { email: email },               // find by email
+                    { $set: updateData }            // update the fields
+                );
+
+                if (result.modifiedCount === 0) {
+                    return res.status(404).json({ message: 'Employee not found or no changes made' });
+                }
+
+                res.json({ message: 'Employee updated successfully' });
+            } catch (err) {
+                console.error('Update error:', err);
+                res.status(500).json({ message: 'Error updating employee' });
+            }
+        });
+
+
+
+
         // ************************************************************************************************
         app.get("/getCurrentUser", verifyToken, async (req, res) => {
             try {
@@ -884,7 +910,27 @@ async function run() {
                 res.status(500).json({ message: 'Failed to fetch balance' });
             }
         });
+        // ************************************************************************************************
+        app.get("/getEmployeeList", verifyToken, async (req, res) => {
 
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const findEmployeeList = await employeeCollections.find().sort({_id: -1}).toArray();
+
+                // const result = await earningsCollections.find().toArray();
+
+                res.send(findEmployeeList);
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch balance' });
+            }
+        });
         // ************************************************************************************************
         app.post('/uploadProfilePic', upload.single('image'), async (req, res) => {
             try {
