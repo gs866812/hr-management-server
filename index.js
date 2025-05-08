@@ -126,6 +126,7 @@ async function run() {
         const mainTransactionCollections = database.collection("mainTransactionList");
         const employeeCollections = database.collection("employeeList");
         const earningsCollections = database.collection("earningsList");
+        const shiftingCollections = database.collection("shiftingList");
         // *******************************************************************************************
         // *******************************************************************************************
         app.post("/addExpense", async (req, res) => {
@@ -348,6 +349,57 @@ async function run() {
                 res.status(500).json({ message: 'Internal server error' });
             }
         });
+
+        // ************************************************************************************************
+        app.post('/assign-shift', async (req, res) => {
+            try {
+                const { employees, shift } = req.body;
+
+                if (!employees?.length || !shift) {
+                    return res.status(400).send({ message: 'Invalid input data' });
+                }
+
+                let inserted = 0;
+                let updated = 0;
+                let skipped = 0;
+
+                for (const emp of employees) {
+                    const existing = await shiftingCollections.findOne({ email: emp.email });
+
+                    if (!existing) {
+                        // No record exists, insert new
+                        await shiftingCollections.insertOne({
+                            fullName: emp.fullName,
+                            email: emp.email,
+                            shiftName: shift,
+                        });
+                        inserted++;
+                    } else if (existing.shiftName !== shift) {
+                        // Email exists with a different shift, update it
+                        await shiftingCollections.updateOne(
+                            { email: emp.email },
+                            { $set: { shiftName: shift } }
+                        );
+                        updated++;
+                    } else {
+                        // Already has the same shift, skip
+                        skipped++;
+                    }
+                }
+
+                res.send({
+                    message: 'Shift assignment processed',
+                    inserted,
+                    updated,
+                    skipped,
+                });
+
+            } catch (error) {
+                console.error('Error assigning shift:', error);
+                res.status(500).json({ message: 'Failed to assign shift' });
+            }
+        });
+
 
         // ************************************************************************************************
 
@@ -912,26 +964,43 @@ async function run() {
         });
         // ************************************************************************************************
         app.get("/getEmployeeList", verifyToken, async (req, res) => {
-
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
+                const search = req.query.search || "";
 
                 if (userMail !== email) {
                     return res.status(401).send({ message: "Forbidden Access" });
                 }
 
-                const findEmployeeList = await employeeCollections.find().sort({_id: -1}).toArray();
+                const query = search
+                    ? {
+                        $or: [
+                            { fullName: { $regex: search, $options: "i" } },
+                            { email: { $regex: search, $options: "i" } },
+                            { phoneNumber: { $regex: search, $options: "i" } },
+                            { designation: { $regex: search, $options: "i" } }
+                        ]
+                    }
+                    : {};
 
-                // const result = await earningsCollections.find().toArray();
+                const findEmployeeList = await employeeCollections
+                    .find(query)
+                    .sort({ _id: -1 })
+                    .toArray();
 
                 res.send(findEmployeeList);
 
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch balance' });
+                res.status(500).json({ message: 'Failed to fetch employee list' });
             }
         });
+
         // ************************************************************************************************
+
+
+
+
         app.post('/uploadProfilePic', upload.single('image'), async (req, res) => {
             try {
                 const userEmail = req.body.email;
