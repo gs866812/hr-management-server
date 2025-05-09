@@ -359,39 +359,39 @@ async function run() {
                     return res.status(400).send({ message: 'Invalid input data' });
                 }
 
-                let inserted = 0;
-                let updated = 0;
-                let skipped = 0;
+                const inserted = [];
+                const updated = [];
+                const skipped = [];
 
                 for (const emp of employees) {
                     const existing = await shiftingCollections.findOne({ email: emp.email });
 
                     if (!existing) {
-                        // No record exists, insert new
                         await shiftingCollections.insertOne({
                             fullName: emp.fullName,
                             email: emp.email,
-                            shiftName: shift,
+                            shiftName: shift
                         });
-                        inserted++;
+                        inserted.push(emp);
                     } else if (existing.shiftName !== shift) {
-                        // Email exists with a different shift, update it
                         await shiftingCollections.updateOne(
                             { email: emp.email },
                             { $set: { shiftName: shift } }
                         );
-                        updated++;
+                        updated.push(emp);
                     } else {
-                        // Already has the same shift, skip
-                        skipped++;
+                        skipped.push(emp);
                     }
                 }
 
-                res.send({
+                res.status(200).json({
                     message: 'Shift assignment processed',
-                    inserted,
-                    updated,
-                    skipped,
+                    insertedCount: inserted.length,
+                    updatedCount: updated.length,
+                    skippedCount: skipped.length,
+                    insertedNames: Array.isArray(inserted) ? inserted.map(e => e.fullName) : [],
+                    updatedNames: Array.isArray(updated) ? updated.map(e => e.fullName) : [],
+                    skippedNames: Array.isArray(skipped) ? skipped.map(e => e.fullName) : [],
                 });
 
             } catch (error) {
@@ -987,6 +987,29 @@ async function run() {
                 const findEmployeeList = await employeeCollections
                     .find(query)
                     .sort({ _id: -1 })
+                    .toArray();
+
+                res.send(findEmployeeList);
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch employee list' });
+            }
+        });
+
+        // ************************************************************************************************
+        app.get("/gethShiftedEmployee", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+                const search = req.query.search || "";
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const findEmployeeList = await shiftingCollections
+                    .find()
+                    .sort()
                     .toArray();
 
                 res.send(findEmployeeList);
