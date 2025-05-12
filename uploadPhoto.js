@@ -1,23 +1,3 @@
-// // controllers/uploadPhoto.js
-// const cloudinary = require('./cloudinary');
-// const streamifier = require('streamifier');
-
-// exports.uploadToCloudinary = (fileBuffer, folder = 'employee_profiles') => {
-//   return new Promise((resolve, reject) => {
-//     const stream = cloudinary.uploader.upload_stream(
-//       {
-//         folder,
-//         resource_type: 'image',
-//       },
-//       (error, result) => {
-//         if (result) resolve(result.secure_url);
-//         else reject(error);
-//       }
-//     );
-//     streamifier.createReadStream(fileBuffer).pipe(stream);
-//   });
-// };
-// backend/controllers/uploadPhoto.js
 const cloudinary = require('./cloudinary');
 const streamifier = require('streamifier');
 
