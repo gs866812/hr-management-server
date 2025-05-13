@@ -752,8 +752,9 @@ async function run() {
                 }
 
                 const count = await expenseCollections.countDocuments(query);
+                const allExpense = await expenseCollections.find().toArray();
                 const category = await categoryCollections.find({}).toArray();
-                res.send({ expense, count, category });
+                res.send({ expense, count, category, allExpense});
 
             } catch (error) {
                 console.error("Error fetching expenses:", error);
