@@ -143,7 +143,7 @@ async function run() {
 
                 const userRole = await userCollections.findOne({ email: mail });
 
-                if (userRole.role == "hr_admin") {
+                if (userRole.role == "HR-ADMIN") {
                     if (availableBalance.balance >= expenseBalance) {
                         const addExpense = await expenseCollections.insertOne(expenseData);
                         await hrBalanceCollections.updateOne(
