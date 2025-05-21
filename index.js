@@ -1019,6 +1019,29 @@ async function run() {
                 res.status(500).json({ message: 'Failed to fetch employee list' });
             }
         });
+        // ************************************************************************************************
+        app.get("/getProfit", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const earnings = await earningsCollections.find().toArray();
+                const totalEarnings = earnings.reduce((acc, earning) => acc + Number(earning.convertedBdt), 0);
+
+                const expense = await expenseCollections.find().toArray();
+                const totalExpense = expense.reduce((acc, exp) => acc + Number(exp.expenseAmount), 0);
+
+                const profit = parseFloat(totalEarnings) - parseFloat(totalExpense);
+                res.send({totalEarnings, totalExpense, profit});
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch employee list' });
+            }
+        });
 
         // ************************************************************************************************
 
