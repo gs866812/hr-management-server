@@ -127,6 +127,7 @@ async function run() {
         const employeeCollections = database.collection("employeeList");
         const earningsCollections = database.collection("earningsList");
         const shiftingCollections = database.collection("shiftingList");
+        const shareHoldersCollections = database.collection("shareHoldersList");
         // *******************************************************************************************
         // *******************************************************************************************
         app.post("/addExpense", async (req, res) => {
@@ -754,7 +755,7 @@ async function run() {
                 const count = await expenseCollections.countDocuments(query);
                 const allExpense = await expenseCollections.find().toArray();
                 const category = await categoryCollections.find({}).toArray();
-                res.send({ expense, count, category, allExpense});
+                res.send({ expense, count, category, allExpense });
 
             } catch (error) {
                 console.error("Error fetching expenses:", error);
@@ -1036,10 +1037,26 @@ async function run() {
                 const totalExpense = expense.reduce((acc, exp) => acc + Number(exp.expenseAmount), 0);
 
                 const profit = parseFloat(totalEarnings) - parseFloat(totalExpense);
-                res.send({totalEarnings, totalExpense, profit});
+                res.send({ totalEarnings, totalExpense, profit });
 
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch employee list' });
+            }
+        });
+        app.get("/getShareHolders", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const result = await shareHoldersCollections.find().toArray();
+                res.send(result);
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch share holders list' });
             }
         });
 
