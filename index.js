@@ -128,7 +128,10 @@ async function run() {
         const earningsCollections = database.collection("earningsList");
         const shiftingCollections = database.collection("shiftingList");
         const shareHoldersCollections = database.collection("shareHoldersList");
+        const profitShareCollections = database.collection("profitShareList");
         // *******************************************************************************************
+        const date = moment(new Date()).format("DD-MMM-YYYY");
+
         // *******************************************************************************************
         app.post("/addExpense", async (req, res) => {
             try {
@@ -140,6 +143,7 @@ async function run() {
                     await categoryCollections.insertOne({ expenseCategory: expenseData.expenseCategory });
                 }
                 const availableBalance = await hrBalanceCollections.findOne();
+                const availableMainBalance = await mainBalanceCollections.findOne();
                 const expenseBalance = expenseData.expenseAmount;
 
                 const userRole = await userCollections.findOne({ email: mail });
@@ -152,13 +156,24 @@ async function run() {
                             {
                                 $inc: { balance: - expenseBalance }
                             });
+                        await hrTransactionCollections.insertOne({ value: expenseBalance, note: expenseData.expenseNote, date, type: "Expense" });
                         res.send(addExpense);
                     } else {
                         res.json('Insufficient balance');
                     }
                 } else {
-                    const addExpense = await expenseCollections.insertOne(expenseData);
-                    res.send(addExpense);
+                    if (availableMainBalance.mainBalance >= expenseBalance) {
+                        const addExpense = await expenseCollections.insertOne(expenseData);
+                        await mainBalanceCollections.updateOne(
+                            {},
+                            {
+                                $inc: { mainBalance: - expenseBalance }
+                            });
+                        await mainTransactionCollections.insertOne({ amount: expenseBalance, note: expenseData.expenseNote, date, type: "Expense" });
+                        res.send(addExpense);
+                    } else {
+                        res.json('Insufficient balance');
+                    }
                 }
 
             } catch (error) {
@@ -169,7 +184,7 @@ async function run() {
         // ************************************************************************************************
         app.post("/addHrBalance", async (req, res) => {
             try {
-                const { parseValue, note, date } = req.body;
+                const { parseValue, note } = req.body;
 
                 const availableBalance = await mainBalanceCollections.findOne();
 
@@ -210,8 +225,8 @@ async function run() {
         // ************************************************************************************************
         app.post("/addMainBalance", async (req, res) => {
             try {
-                const { parseValue, note, date } = req.body; // Assuming amount is sent in the request body
-                await mainTransactionCollections.insertOne({ parseValue, note, date });
+                const { parseValue, note } = req.body; // Assuming amount is sent in the request body
+                await mainTransactionCollections.insertOne({ amount: parseValue, note, date, type: "Credit" });
 
                 let existingBalance = await mainBalanceCollections.findOne();
 
@@ -300,10 +315,14 @@ async function run() {
                     {
                         $inc: { mainBalance: earningsAmount }
                     });
-
-                // Push fullData into paymentHistory array of the matched client
-                console.log('Client ID:', clientID);
-
+                // add earnings to main transactions
+                await mainTransactionCollections.insertOne({
+                    amount: earningsAmount,
+                    note: `Earnings from ${clientID}`,
+                    date,
+                    type: "Earning"
+                });
+                // add earnings to client history
                 await clientCollections.updateOne(
                     { clientID: clientID },
                     {
@@ -400,8 +419,28 @@ async function run() {
                 res.status(500).json({ message: 'Failed to assign shift' });
             }
         });
+        // ************************************************************************************************
+        app.post('/addProfitShareData', async (req, res) => {
+            try {
+                const shareData = req.body;
+                const profitShareData = { ...shareData, date };
+                const result = await profitShareCollections.insertOne(profitShareData);
+
+                await mainBalanceCollections.updateOne(
+                    {},
+                    {
+                        $inc: { mainBalance: - shareData.sharedProfitBalance }
+                    });
+
+                await hrTransactionCollections.insertOne({ value: shareData.sharedProfitBalance, note: "Profit share", date, type: "Share" });
+
+                res.send(result);
 
 
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to share profit' });
+            }
+        });
         // ************************************************************************************************
 
 
@@ -612,7 +651,7 @@ async function run() {
         // *****************************************************************************************
         app.put("/returnHrBalance", async (req, res) => {
             try {
-                const { parseValue, note, date } = req.body;
+                const { parseValue, note } = req.body;
 
                 const availableBalance = await hrBalanceCollections.findOne();
 
@@ -1060,6 +1099,23 @@ async function run() {
             }
         });
 
+        // ***********************getShareholderInfo*******************************************************
+        app.get("/getShareholderInfo", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const result = await profitShareCollections.find().toArray();
+                res.send(result);
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch share holders list' });
+            }
+        });
         // ************************************************************************************************
 
 
