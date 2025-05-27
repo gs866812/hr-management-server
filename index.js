@@ -129,6 +129,7 @@ async function run() {
         const shiftingCollections = database.collection("shiftingList");
         const shareHoldersCollections = database.collection("shareHoldersList");
         const profitShareCollections = database.collection("profitShareList");
+        const checkInCollections = database.collection("checkInList");
         // *******************************************************************************************
         const date = moment(new Date()).format("DD-MMM-YYYY");
 
@@ -441,6 +442,34 @@ async function run() {
                 res.status(500).json({ message: 'Failed to share profit' });
             }
         });
+        // ************************************************************************************************
+        app.post('/employee/checkIn', async (req, res) => {
+            const { checkInInfo } = req.body;
+
+            try {
+
+                // Check if the user already checked in today
+                const existingCheckIn = await checkInCollections.findOne({
+                    email: checkInInfo.email,
+                    date: checkInInfo.date, // match by email and today's date
+                });
+
+                if (existingCheckIn) {
+                    return res.json({ message: 'Already checked in today' });
+                }
+
+                const result = await checkInCollections.insertOne(checkInInfo);
+
+                if (result.insertedId) {
+                    res.status(200).json({ message: 'Check-in successful' });
+                } else {
+                    res.status(500).json({ message: 'Check-in failed' });
+                }
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to check in', error: error.message });
+            }
+        });
+
         // ************************************************************************************************
 
 
@@ -1114,6 +1143,28 @@ async function run() {
 
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch share holders list' });
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getCheckInInfo", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const date = req.query.date || moment(new Date()).format("DD-MMM-YYYY");
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                };
+                const isExist = await checkInCollections.findOne({ email: userMail, date: date });
+                if (isExist) {
+                    const result = await checkInCollections.find().toArray();
+                    res.send(result);
+                }
+
+
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch check-in time' });
             }
         });
         // ************************************************************************************************
