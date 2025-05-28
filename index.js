@@ -130,6 +130,8 @@ async function run() {
         const shareHoldersCollections = database.collection("shareHoldersList");
         const profitShareCollections = database.collection("profitShareList");
         const checkInCollections = database.collection("checkInList");
+        const checkOutCollections = database.collection("checkOutList");
+        const attendanceCollections = database.collection("attendanceList");
         // *******************************************************************************************
         const date = moment(new Date()).format("DD-MMM-YYYY");
 
@@ -376,6 +378,18 @@ async function run() {
             try {
                 const { employees, shift } = req.body;
 
+                let entryTime;
+                if (shift === "Morning") {
+                    entryTime = "06:00 AM";
+                } else if (shift === "Evening") {
+                    entryTime = "02:00 PM";
+                } else if (shift === "Night") {
+                    entryTime = "10:00 PM";
+                } else if (shift === "General") {
+                    entryTime = "10:00 AM";
+                }
+
+
                 if (!employees?.length || !shift) {
                     return res.status(400).send({ message: 'Invalid input data' });
                 }
@@ -391,13 +405,19 @@ async function run() {
                         await shiftingCollections.insertOne({
                             fullName: emp.fullName,
                             email: emp.email,
-                            shiftName: shift
+                            shiftName: shift,
+                            entryTime,
                         });
                         inserted.push(emp);
                     } else if (existing.shiftName !== shift) {
                         await shiftingCollections.updateOne(
                             { email: emp.email },
-                            { $set: { shiftName: shift } }
+                            {
+                                $set: {
+                                    shiftName: shift,
+                                    entryTime,
+                                }
+                            }
                         );
                         updated.push(emp);
                     } else {
@@ -469,7 +489,59 @@ async function run() {
                 res.status(500).json({ message: 'Failed to check in', error: error.message });
             }
         });
+        // ************************************************************************************************
+        app.post('/employee/checkOut', async (req, res) => {
+            const checkOutInfo = req.body;
+            const email = req.body.email; // Assuming email is part of checkOutInfo
+            const date = req.body.date; // Assuming date is part of checkOutInfo
 
+            const checkInInfo = await checkInCollections.findOne({ email, date });
+
+
+            try {
+
+                // Check if the user already check out today
+                const existingCheckOut = await checkOutCollections.findOne({
+                    email,
+                    date, // match by email and today's date
+                });
+
+                if (existingCheckOut) {
+                    return res.json({ message: 'Already check out' });
+                }
+
+                const result = await checkOutCollections.insertOne(checkOutInfo);
+
+                if (result.insertedId) {
+                    // Update attendance collection
+                    const inTime = checkInInfo.checkInTime;
+                    const outTime = checkOutInfo.checkOutTime;
+                    const calculateTime = outTime - inTime;
+
+                    const totalSeconds = Math.floor(calculateTime / 1000);
+                    const hours = Math.floor(totalSeconds / 3600) || 0;
+                    const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
+                    // const seconds = totalSeconds % 60;
+                    const workingDisplay = `${hours}h ${minutes}m`;
+
+                    const attendanceData = {
+                        email: email,
+                        date: date,
+                        month: checkOutInfo.month, // Assuming month is part of checkOutInfo
+                        checkInTime: checkInInfo.checkInTime,
+                        checkOutTime: checkOutInfo.checkOutTime,
+                        workingDisplay,
+                        workingHourInSeconds: calculateTime, // Store the total milliseconds
+                    };
+                    await attendanceCollections.insertOne(attendanceData);
+                    res.status(200).json({ message: 'Check-out successful' });
+                } else {
+                    res.status(500).json({ message: 'Check-out failed' });
+                }
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to check out', error: error.message });
+            }
+        });
         // ************************************************************************************************
 
 
@@ -1156,12 +1228,26 @@ async function run() {
                     return res.status(401).send({ message: "Forbidden Access" });
                 };
                 const isExist = await checkInCollections.findOne({ email: userMail, date: date });
-                if (isExist) {
-                    const result = await checkInCollections.find().toArray();
-                    res.send(result);
-                }
+                res.send(isExist);
 
 
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch check-in time' });
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getCheckOutInfo", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const date = req.query.date || moment(new Date()).format("DD-MMM-YYYY");
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                };
+                const isExist = await checkOutCollections.findOne({ email: userMail, date: date });
+                res.send(isExist);
 
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch check-in time' });
