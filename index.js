@@ -497,6 +497,17 @@ async function run() {
 
             const checkInInfo = await checkInCollections.findOne({ email, date });
 
+            // Update attendance collection
+            const inTime = checkInInfo.checkInTime;
+            const outTime = checkOutInfo.checkOutTime;
+            const calculateTime = outTime - inTime;
+
+            const totalSeconds = Math.floor(calculateTime / 1000);
+            const hours = Math.floor(totalSeconds / 3600) || 0;
+            const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
+            // const seconds = totalSeconds % 60;
+            const workingDisplay = `${hours}h ${minutes}m`;
+
 
             try {
 
@@ -513,16 +524,6 @@ async function run() {
                 const result = await checkOutCollections.insertOne(checkOutInfo);
 
                 if (result.insertedId) {
-                    // Update attendance collection
-                    const inTime = checkInInfo.checkInTime;
-                    const outTime = checkOutInfo.checkOutTime;
-                    const calculateTime = outTime - inTime;
-
-                    const totalSeconds = Math.floor(calculateTime / 1000);
-                    const hours = Math.floor(totalSeconds / 3600) || 0;
-                    const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
-                    // const seconds = totalSeconds % 60;
-                    const workingDisplay = `${hours}h ${minutes}m`;
 
                     const attendanceData = {
                         email: email,
