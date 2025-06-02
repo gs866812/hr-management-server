@@ -132,6 +132,7 @@ async function run() {
         const checkInCollections = database.collection("checkInList");
         const checkOutCollections = database.collection("checkOutList");
         const attendanceCollections = database.collection("attendanceList");
+        const overTimeCollections = database.collection("overTimeList");
         // *******************************************************************************************
         const date = moment(new Date()).format("DD-MMM-YYYY");
 
@@ -374,6 +375,73 @@ async function run() {
         });
 
         // ************************************************************************************************
+        // app.post('/assign-shift', async (req, res) => {
+        //     try {
+        //         const { employees, shift } = req.body;
+        //         console.log(employees.fullName);
+
+        //         let entryTime;
+        //         if (shift === "Morning") {
+        //             entryTime = "06:00 AM";
+        //         } else if (shift === "Evening") {
+        //             entryTime = "02:00 PM";
+        //         } else if (shift === "Night") {
+        //             entryTime = "10:00 PM";
+        //         } else if (shift === "General") {
+        //             entryTime = "10:00 AM";
+        //         }
+
+
+        //         if (!employees?.length || !shift) {
+        //             return res.status(400).send({ message: 'Invalid input data' });
+        //         }
+
+        //         const inserted = [];
+        //         const updated = [];
+        //         const skipped = [];
+
+        //         for (const emp of employees) {
+        //             const existing = await shiftingCollections.findOne({ email: emp.email });
+
+        //             if (!existing) {
+        //                 await shiftingCollections.insertOne({
+        //                     fullName: emp.fullName,
+        //                     email: emp.email,
+        //                     shiftName: shift,
+        //                     entryTime,
+        //                 });
+        //                 inserted.push(emp);
+        //             } else if (existing.shiftName !== shift) {
+        //                 await shiftingCollections.updateOne(
+        //                     { email: emp.email },
+        //                     {
+        //                         $set: {
+        //                             shiftName: shift,
+        //                             entryTime,
+        //                         }
+        //                     }
+        //                 );
+        //                 updated.push(emp);
+        //             } else {
+        //                 skipped.push(emp);
+        //             }
+        //         }
+
+        //         res.status(200).json({
+        //             message: 'Shift assignment processed',
+        //             insertedCount: inserted.length,
+        //             updatedCount: updated.length,
+        //             skippedCount: skipped.length,
+        //             insertedNames: Array.isArray(inserted) ? inserted.map(e => e.fullName) : [],
+        //             updatedNames: Array.isArray(updated) ? updated.map(e => e.fullName) : [],
+        //             skippedNames: Array.isArray(skipped) ? skipped.map(e => e.fullName) : [],
+        //         });
+
+        //     } catch (error) {
+        //         console.error('Error assigning shift:', error);
+        //         res.status(500).json({ message: 'Failed to assign shift' });
+        //     }
+        // });
         app.post('/assign-shift', async (req, res) => {
             try {
                 const { employees, shift } = req.body;
@@ -387,8 +455,9 @@ async function run() {
                     entryTime = "10:00 PM";
                 } else if (shift === "General") {
                     entryTime = "10:00 AM";
+                } else if (shift === "OT list") {
+                    entryTime = "10:00 AM"; // or assign custom time for OT list
                 }
-
 
                 if (!employees?.length || !shift) {
                     return res.status(400).send({ message: 'Invalid input data' });
@@ -399,29 +468,49 @@ async function run() {
                 const skipped = [];
 
                 for (const emp of employees) {
-                    const existing = await shiftingCollections.findOne({ email: emp.email });
+                    if (shift === "OT list") {
+                        // For OT list, allow duplicate entry with same email + OT marker
+                        const otEmailKey = emp.email + "_OT";
+                        const alreadyInOT = await shiftingCollections.findOne({ email: otEmailKey });
 
-                    if (!existing) {
-                        await shiftingCollections.insertOne({
-                            fullName: emp.fullName,
-                            email: emp.email,
-                            shiftName: shift,
-                            entryTime,
-                        });
-                        inserted.push(emp);
-                    } else if (existing.shiftName !== shift) {
-                        await shiftingCollections.updateOne(
-                            { email: emp.email },
-                            {
-                                $set: {
-                                    shiftName: shift,
-                                    entryTime,
-                                }
-                            }
-                        );
-                        updated.push(emp);
+                        if (!alreadyInOT) {
+                            await shiftingCollections.insertOne({
+                                fullName: emp.fullName,
+                                email: otEmailKey, // Mark as OT entry
+                                actualEmail: emp.email, // Keep original email as reference
+                                shiftName: shift,
+                                entryTime,
+                            });
+                            inserted.push(emp);
+                        } else {
+                            skipped.push(emp);
+                        }
+
                     } else {
-                        skipped.push(emp);
+                        const existing = await shiftingCollections.findOne({ email: emp.email });
+
+                        if (!existing) {
+                            await shiftingCollections.insertOne({
+                                fullName: emp.fullName,
+                                email: emp.email,
+                                shiftName: shift,
+                                entryTime,
+                            });
+                            inserted.push(emp);
+                        } else if (existing.shiftName !== shift) {
+                            await shiftingCollections.updateOne(
+                                { email: emp.email },
+                                {
+                                    $set: {
+                                        shiftName: shift,
+                                        entryTime,
+                                    }
+                                }
+                            );
+                            updated.push(emp);
+                        } else {
+                            skipped.push(emp);
+                        }
                     }
                 }
 
@@ -430,9 +519,9 @@ async function run() {
                     insertedCount: inserted.length,
                     updatedCount: updated.length,
                     skippedCount: skipped.length,
-                    insertedNames: Array.isArray(inserted) ? inserted.map(e => e.fullName) : [],
-                    updatedNames: Array.isArray(updated) ? updated.map(e => e.fullName) : [],
-                    skippedNames: Array.isArray(skipped) ? skipped.map(e => e.fullName) : [],
+                    insertedNames: inserted.map(e => e.fullName),
+                    updatedNames: updated.map(e => e.fullName),
+                    skippedNames: skipped.map(e => e.fullName),
                 });
 
             } catch (error) {
@@ -440,6 +529,7 @@ async function run() {
                 res.status(500).json({ message: 'Failed to assign shift' });
             }
         });
+
         // ************************************************************************************************
         app.post('/addProfitShareData', async (req, res) => {
             try {
@@ -538,6 +628,44 @@ async function run() {
                     res.status(200).json({ message: 'Check-out successful' });
                 } else {
                     res.status(500).json({ message: 'Check-out failed' });
+                }
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to check out', error: error.message });
+            }
+        });
+        // ************************************************************************************************
+        app.post('/employee/startOverTime', async (req, res) => {
+            const overTimeInfo = req.body;
+            const email = req.body.email; // Assuming email is part of checkOutInfo
+            const date = req.body.date; // Assuming date is part of checkOutInfo
+
+
+
+
+            try {
+
+                const isInOT = await shiftingCollections.findOne({ actualEmail: email, shiftName: "OT list" });
+                if (!isInOT) {
+                    return res.json({ message: 'You are not eligible for over time' });
+                }
+
+
+                // Check if the user already start OT today
+                const existingOT = await overTimeCollections.findOne({
+                    email,
+                    date, // match by email and today's date
+                });
+
+                if (existingOT) {
+                    return res.json({ message: 'OT Already started' });
+                }
+
+                const result = await overTimeCollections.insertOne(overTimeInfo);
+
+                if (result.insertedId) {
+                    res.status(200).json({ message: 'Over time started' });
+                } else {
+                    res.status(500).json({ message: 'Over time started failed' });
                 }
             } catch (error) {
                 res.status(500).json({ message: 'Failed to check out', error: error.message });
@@ -792,6 +920,7 @@ async function run() {
 
 
         // ******************************************************************************************
+        // ******************************************************************************************
         app.patch('/updateEmployee/:email', async (req, res) => {
             const { email } = req.params;
             const updateData = req.body;
@@ -813,7 +942,27 @@ async function run() {
             }
         });
 
+        // ************************************************************************************************
+        // ************************************************************************************************
 
+        app.delete('/removeOT/:id', async (req, res) => {
+            const id = req.params.id;
+
+            try {
+                const result = await shiftingCollections.deleteOne({ _id: new ObjectId(id) });
+
+                if (result.deletedCount === 1) {
+                    res.json({ message: 'success' });
+                } else {
+                    res.json({ message: 'fail' });
+                }
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to remove OT', error: error.message });
+            }
+        });
+
+        // ************************************************************************************************
+        // ************************************************************************************************
 
 
         // ************************************************************************************************
