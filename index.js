@@ -552,9 +552,9 @@ async function run() {
                 res.status(500).json({ message: 'Failed to share profit' });
             }
         });
-        // ************************************************************************************************
+        //************************************************************************************************
         app.post('/employee/checkIn', async (req, res) => {
-            const { checkInInfo } = req.body;
+            const checkInInfo = req.body;
 
             try {
 
@@ -566,8 +566,26 @@ async function run() {
 
                 if (existingCheckIn) {
                     return res.json({ message: 'Already checked in today' });
+                };
+
+                const shiftInfo = await shiftingCollections.findOne({ email: checkInInfo.email });
+
+
+                const now = Date.now();
+                const morningShiftStart = moment().startOf('day').add(5, 'hours').add(45, 'minutes').valueOf(); 
+                // const morningShiftEnd = moment().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf(); 
+                const eveningShiftStart = moment().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf(); 
+
+                if(shiftInfo.shiftName === "Evening" && now < eveningShiftStart) {
+                    // For OT list, allow check-in at any time
+                    return res.json({ message: 'You are not in morning shift' });
                 }
 
+                if(shiftInfo.shiftName === "Morning" && now >= eveningShiftStart) {
+                    // For OT list, allow check-in at any time
+                    return res.json({ message: 'You are not in evening shift' });
+                }
+               
                 const result = await checkInCollections.insertOne(checkInInfo);
 
                 if (result.insertedId) {
@@ -579,6 +597,9 @@ async function run() {
                 res.status(500).json({ message: 'Failed to check in', error: error.message });
             }
         });
+
+
+
         // ************************************************************************************************
         app.post('/employee/checkOut', async (req, res) => {
             const checkOutInfo = req.body;
@@ -586,6 +607,7 @@ async function run() {
             const date = req.body.date; // Assuming date is part of checkOutInfo
 
             const checkInInfo = await checkInCollections.findOne({ email, date });
+            const employee = await employeeCollections.findOne({ email });
 
             // Update attendance collection
             const inTime = checkInInfo.checkInTime;
@@ -617,6 +639,14 @@ async function run() {
 
                     const attendanceData = {
                         email: email,
+                        fullName: employee.fullName, // Assuming fullName is part of employee document
+                        designation: employee.designation, // Assuming designation is part of employee document
+                        phoneNumber: employee.phoneNumber, // Assuming phoneNumber is part of employee document
+                        NID: employee.NID, // Assuming NID is part of employee document
+                        DOB: employee.DOB, // Assuming DOB is part of employee document
+                        emergencyContact: employee.emergencyContact, // Assuming emergencyContact is part of employee document
+                        address: employee.address, // Assuming address is part of employee document
+                        status: employee.status, // Assuming status is part of employee document
                         date: date,
                         month: checkOutInfo.month, // Assuming month is part of checkOutInfo
                         checkInTime: checkInInfo.checkInTime,
