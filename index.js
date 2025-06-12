@@ -132,7 +132,7 @@ async function run() {
         const checkInCollections = database.collection("checkInList");
         const checkOutCollections = database.collection("checkOutList");
         const attendanceCollections = database.collection("attendanceList");
-        const overTimeCollections = database.collection("overTimeList");
+        const OTStartCollections = database.collection("OTStartList");
         // *******************************************************************************************
         const date = moment(new Date()).format("DD-MMM-YYYY");
 
@@ -444,7 +444,7 @@ async function run() {
         // });
         app.post('/assign-shift', async (req, res) => {
             try {
-                const { employees, shift } = req.body;
+                const { employees, shift, OTFor} = req.body;
 
                 let entryTime;
                 if (shift === "Morning") {
@@ -480,6 +480,7 @@ async function run() {
                                 actualEmail: emp.email, // Keep original email as reference
                                 shiftName: shift,
                                 entryTime,
+                                OTFor,
                             });
                             inserted.push(emp);
                         } else {
@@ -572,27 +573,54 @@ async function run() {
 
 
                 const now = Date.now();
-                const morningShiftStart = moment().startOf('day').add(5, 'hours').add(45, 'minutes').valueOf(); 
-                // const morningShiftEnd = moment().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf(); 
-                const eveningShiftStart = moment().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf(); 
+                const initialMorningShift = moment().startOf('day').add(5, 'hours').add(45, 'minutes').valueOf();
+                const morningShiftStart = moment().startOf('day').add(6, 'hours').add(0, 'minutes').valueOf();
+                const morningShiftLateCount = moment().startOf('day').add(6, 'hours').add(15, 'minutes').valueOf();
+                // const morningShiftAbsent = moment().startOf('day').add(6, 'hours').add(30, 'minutes').valueOf();
+                const InitialEveningShift = moment().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf();
+                const eveningShiftStart = moment().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
+                const eveningShiftLateCount = moment().startOf('day').add(14, 'hours').add(15, 'minutes').valueOf();
 
-                if(shiftInfo.shiftName === "Evening" && now < eveningShiftStart) {
-                    // For OT list, allow check-in at any time
-                    return res.json({ message: 'You are not in morning shift' });
+                if (shiftInfo.shiftName === "Morning" && now >= initialMorningShift && now <= morningShiftStart) {
+
+                    const result = await checkInCollections.insertOne(checkInInfo);
+
+                    if (result.insertedId) {
+                        res.status(200).json({ message: 'Check-in successful' });
+                    } else {
+                        res.json({ message: 'Check-in failed' });
+                    }
+                } else if (shiftInfo.shiftName === "Morning" && now > morningShiftStart && now <= morningShiftLateCount) {
+
+                    const result = await checkInCollections.insertOne(checkInInfo, {lateCheckIn: true});
+
+                    if (result.insertedId) {
+                        res.status(200).json({ message: 'You are late today' });
+                    } else {
+                        res.json({ message: 'Check-in failed' });
+                    }
+                }else if(shiftInfo.shiftName === "Evening" && now > InitialEveningShift && now <= eveningShiftStart){
+
+                    const result = await checkInCollections.insertOne(checkInInfo);
+
+                    if (result.insertedId) {
+                        res.status(200).json({ message: 'Check-in successful' });
+                    } else {
+                        res.json({ message: 'Check-in failed' });
+                    }
+                }else if(shiftInfo.shiftName === "Evening" && now > eveningShiftStart && now <= eveningShiftLateCount){
+
+                    const result = await checkInCollections.insertOne(checkInInfo, {lateCheckIn: true});
+
+                    if (result.insertedId) {
+                        res.status(200).json({ message: 'You are late today' });
+                    } else {
+                        res.json({ message: 'Check-in failed' });
+                    }
+                }else{
+                    return res.json({ message: 'You are not eligible to check in at this time' });
                 }
 
-                if(shiftInfo.shiftName === "Morning" && now >= eveningShiftStart) {
-                    // For OT list, allow check-in at any time
-                    return res.json({ message: 'You are not in evening shift' });
-                }
-               
-                const result = await checkInCollections.insertOne(checkInInfo);
-
-                if (result.insertedId) {
-                    res.status(200).json({ message: 'Check-in successful' });
-                } else {
-                    res.status(500).json({ message: 'Check-in failed' });
-                }
             } catch (error) {
                 res.status(500).json({ message: 'Failed to check in', error: error.message });
             }
@@ -665,9 +693,7 @@ async function run() {
         });
         // ************************************************************************************************
         app.post('/employee/startOverTime', async (req, res) => {
-            const overTimeInfo = req.body;
-            const email = req.body.email; // Assuming email is part of checkOutInfo
-            const date = req.body.date; // Assuming date is part of checkOutInfo
+            const {date, month, startingOverTime,  displayTime, signInTime, email} = req.body; // Assuming email is part of checkOutInfo
 
 
 
@@ -687,7 +713,7 @@ async function run() {
                 });
 
                 if (existingOT) {
-                    return res.json({ message: 'OT Already started' });
+                    return res.json({ message: 'Already in OT list' });
                 }
 
                 const result = await overTimeCollections.insertOne(overTimeInfo);
