@@ -133,6 +133,9 @@ async function run() {
         const checkOutCollections = database.collection("checkOutList");
         const attendanceCollections = database.collection("attendanceList");
         const OTStartCollections = database.collection("OTStartList");
+        const OTStopCollections = database.collection("OTStopList");
+        const OTCalculateCollections = database.collection("OTCalculateList");
+
         // *******************************************************************************************
         const date = moment(new Date()).format("DD-MMM-YYYY");
 
@@ -444,7 +447,7 @@ async function run() {
         // });
         app.post('/assign-shift', async (req, res) => {
             try {
-                const { employees, shift, OTFor} = req.body;
+                const { employees, shift, OTFor } = req.body;
 
                 let entryTime;
                 if (shift === "Morning") {
@@ -575,31 +578,17 @@ async function run() {
                 const now = Date.now();
                 const initialMorningShift = moment().startOf('day').add(5, 'hours').add(45, 'minutes').valueOf();
                 const morningShiftStart = moment().startOf('day').add(6, 'hours').add(0, 'minutes').valueOf();
-                const morningShiftLateCount = moment().startOf('day').add(6, 'hours').add(15, 'minutes').valueOf();
-                // const morningShiftAbsent = moment().startOf('day').add(6, 'hours').add(30, 'minutes').valueOf();
+                const morningShiftLateCount = moment().startOf('day').add(6, 'hours').add(20, 'minutes').valueOf();
+
+                const initialGeneralShift = moment().startOf('day').add(9, 'hours').add(45, 'minutes').valueOf();
+                const generalShiftStart = moment().startOf('day').add(10, 'hours').add(0, 'minutes').valueOf();
+                const generalShiftLateCount = moment().startOf('day').add(10, 'hours').add(30, 'minutes').valueOf();
+
                 const InitialEveningShift = moment().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf();
-                const eveningShiftStart = moment().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
-                const eveningShiftLateCount = moment().startOf('day').add(14, 'hours').add(15, 'minutes').valueOf();
+                const eveningShiftStart = moment().startOf('day').add(14, 'hours').add(10, 'minutes').valueOf();
+                const eveningShiftLateCount = moment().startOf('day').add(14, 'hours').add(30, 'minutes').valueOf();
 
-                if (shiftInfo.shiftName === "Morning" && now >= initialMorningShift && now <= morningShiftStart) {
-
-                    const result = await checkInCollections.insertOne(checkInInfo);
-
-                    if (result.insertedId) {
-                        res.status(200).json({ message: 'Check-in successful' });
-                    } else {
-                        res.json({ message: 'Check-in failed' });
-                    }
-                } else if (shiftInfo.shiftName === "Morning" && now > morningShiftStart && now <= morningShiftLateCount) {
-
-                    const result = await checkInCollections.insertOne(checkInInfo, {lateCheckIn: true});
-
-                    if (result.insertedId) {
-                        res.status(200).json({ message: 'You are late today' });
-                    } else {
-                        res.json({ message: 'Check-in failed' });
-                    }
-                }else if(shiftInfo.shiftName === "Evening" && now > InitialEveningShift && now <= eveningShiftStart){
+                if (shiftInfo.shiftName === "Morning" && now >= initialMorningShift && now <= morningShiftStart || shiftInfo.shiftName === "General" && now >= initialGeneralShift && now <= generalShiftStart) {
 
                     const result = await checkInCollections.insertOne(checkInInfo);
 
@@ -608,16 +597,34 @@ async function run() {
                     } else {
                         res.json({ message: 'Check-in failed' });
                     }
-                }else if(shiftInfo.shiftName === "Evening" && now > eveningShiftStart && now <= eveningShiftLateCount){
+                } else if (shiftInfo.shiftName === "Morning" && now > morningShiftStart && now <= morningShiftLateCount || shiftInfo.shiftName === "General" && now > generalShiftStart && now <= generalShiftLateCount) {
 
-                    const result = await checkInCollections.insertOne(checkInInfo, {lateCheckIn: true});
+                    const result = await checkInCollections.insertOne(checkInInfo, { lateCheckIn: true });
 
                     if (result.insertedId) {
                         res.status(200).json({ message: 'You are late today' });
                     } else {
                         res.json({ message: 'Check-in failed' });
                     }
-                }else{
+                } else if (shiftInfo.shiftName === "Evening" && now > InitialEveningShift && now <= eveningShiftStart) {
+
+                    const result = await checkInCollections.insertOne(checkInInfo);
+
+                    if (result.insertedId) {
+                        res.status(200).json({ message: 'Check-in successful' });
+                    } else {
+                        res.json({ message: 'Check-in failed' });
+                    }
+                } else if (shiftInfo.shiftName === "Evening" && now > eveningShiftStart && now <= eveningShiftLateCount) {
+
+                    const result = await checkInCollections.insertOne(checkInInfo, { lateCheckIn: true });
+
+                    if (result.insertedId) {
+                        res.status(200).json({ message: 'You are late today' });
+                    } else {
+                        res.json({ message: 'Check-in failed' });
+                    }
+                } else {
                     return res.json({ message: 'You are not eligible to check in at this time' });
                 }
 
@@ -693,30 +700,17 @@ async function run() {
         });
         // ************************************************************************************************
         app.post('/employee/startOverTime', async (req, res) => {
-            const {date, month, startingOverTime,  displayTime, signInTime, email} = req.body; // Assuming email is part of checkOutInfo
-
-
-
+            const { date, month, startingOverTime, displayTime, signInTime, email } = req.body; // Assuming email is part of checkOutInfo
 
             try {
 
                 const isInOT = await shiftingCollections.findOne({ actualEmail: email, shiftName: "OT list" });
                 if (!isInOT) {
-                    return res.json({ message: 'You are not eligible for over time' });
+                    return res.json({ message: 'You are not in OT list' });
                 }
 
 
-                // Check if the user already start OT today
-                const existingOT = await overTimeCollections.findOne({
-                    email,
-                    date, // match by email and today's date
-                });
-
-                if (existingOT) {
-                    return res.json({ message: 'Already in OT list' });
-                }
-
-                const result = await overTimeCollections.insertOne(overTimeInfo);
+                const result = await OTStartCollections.insertOne({ date, month, startingOverTime, displayTime, signInTime, email, OTFor: isInOT.OTFor });
 
                 if (result.insertedId) {
                     res.status(200).json({ message: 'Over time started' });
@@ -724,7 +718,59 @@ async function run() {
                     res.status(500).json({ message: 'Over time started failed' });
                 }
             } catch (error) {
-                res.status(500).json({ message: 'Failed to check out', error: error.message });
+                res.status(500).json({ message: 'Failed to start OT', error: error.message });
+            }
+        });
+        // ************************************************************************************************
+        app.post('/employee/stopOverTime', async (req, res) => {
+            const { date, month, OTStopTime, displayTime, email } = req.body;
+
+
+            const startOTInfo = await OTStartCollections.findOne({ email, date });
+            const employee = await employeeCollections.findOne({ email });
+
+            // Update attendance collection
+            const otStartTime = startOTInfo.startingOverTime;
+            const calculateOTTime = OTStopTime - otStartTime;
+
+            const totalSeconds = Math.floor(calculateOTTime / 1000);
+            const hours = Math.floor(totalSeconds / 3600) || 0;
+            const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
+            // const seconds = totalSeconds % 60;
+            const workingOTDisplay = `${hours}h ${minutes}m`;
+
+
+            try {
+
+                // Check if the user already check out today
+                const existingOT = await OTStopCollections.findOne({
+                    email,
+                    date, // match by email and today's date
+                });
+
+                if (existingOT) {
+                    return res.json({ message: 'Already stop OT out' });
+                }
+
+                const result = await OTStopCollections.insertOne({ date, month, OTStopTime, displayTime, email });
+
+                if (result.insertedId) {
+
+                    const OTCountingData = {
+                        email: email,
+                        date,
+                        otStartTime: startOTInfo.startingOverTime,
+                        otStopTime: OTStopTime,
+                        workingOTDisplay,
+                        workingOTHourInSeconds: calculateOTTime, // Store the total milliseconds
+                    };
+                    await OTCalculateCollections.insertOne(OTCountingData);
+                    res.status(200).json({ message: 'OT stop successful' });
+                } else {
+                    res.status(500).json({ message: 'OT stop failed' });
+                }
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to stop OT', error: error.message });
             }
         });
         // ************************************************************************************************
@@ -1457,6 +1503,59 @@ async function run() {
 
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch check-in time' });
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getStartOTInfo", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const date = req.query.date || moment(new Date()).format("DD-MMM-YYYY");
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                };
+                const isExist = await OTStartCollections.findOne({ email: userMail, date: date });
+
+                res.send(isExist);
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch check-in time' });
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getStopOTTime", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const date = req.query.date || moment(new Date()).format("DD-MMM-YYYY");
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                };
+                const isExist = await OTStopCollections.findOne({ email: userMail, date: date });
+                console.log(isExist);
+                res.send(isExist);
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch check-in time' });
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getAttendance", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const month = req.query.month || moment(new Date()).format("MMM-YYYY");
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                };
+                const isExist = await attendanceCollections.find({ email: userMail, month }).toArray();
+                res.send(isExist);
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch attendance' });
             }
         });
         // ************************************************************************************************
