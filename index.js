@@ -578,17 +578,20 @@ async function run() {
                 const now = Date.now();
                 const initialMorningShift = moment().startOf('day').add(5, 'hours').add(45, 'minutes').valueOf();
                 const morningShiftStart = moment().startOf('day').add(6, 'hours').add(0, 'minutes').valueOf();
-                const morningShiftLateCount = moment().startOf('day').add(6, 'hours').add(20, 'minutes').valueOf();
+                const morningShiftLateCount = moment().startOf('day').add(12, 'hours').add(5, 'minutes').valueOf();
 
                 const initialGeneralShift = moment().startOf('day').add(9, 'hours').add(45, 'minutes').valueOf();
                 const generalShiftStart = moment().startOf('day').add(10, 'hours').add(0, 'minutes').valueOf();
                 const generalShiftLateCount = moment().startOf('day').add(10, 'hours').add(30, 'minutes').valueOf();
 
                 const InitialEveningShift = moment().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf();
-                const eveningShiftStart = moment().startOf('day').add(14, 'hours').add(10, 'minutes').valueOf();
-                const eveningShiftLateCount = moment().startOf('day').add(14, 'hours').add(30, 'minutes').valueOf();
+                const eveningShiftStart = moment().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
+                const eveningShiftStartForLateCount = moment().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
+                const eveningShiftLateCount = moment().startOf('day').add(17, 'hours').add(30, 'minutes').valueOf();
 
-                if (shiftInfo.shiftName === "Morning" && now >= initialMorningShift && now <= morningShiftStart || shiftInfo.shiftName === "General" && now >= initialGeneralShift && now <= generalShiftStart) {
+
+
+                if (shiftInfo.shiftName === "Morning" && now >= initialMorningShift && now <= morningShiftStart) {
 
                     const result = await checkInCollections.insertOne(checkInInfo);
 
@@ -597,9 +600,37 @@ async function run() {
                     } else {
                         res.json({ message: 'Check-in failed' });
                     }
-                } else if (shiftInfo.shiftName === "Morning" && now > morningShiftStart && now <= morningShiftLateCount || shiftInfo.shiftName === "General" && now > generalShiftStart && now <= generalShiftLateCount) {
+                } else if (shiftInfo.shiftName === "Morning" && now > morningShiftStart && now <= morningShiftLateCount) {
+                    const lateCount = now - morningShiftStart;
+                    const totalSeconds = Math.floor(lateCount / 1000);
+                    const hours = Math.floor(totalSeconds / 3600) || 0;
+                    const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
+                    const lateCountDisplay = `${hours}h ${minutes}m`;
 
-                    const result = await checkInCollections.insertOne(checkInInfo, { lateCheckIn: true });
+                    const result = await checkInCollections.insertOne({ ...checkInInfo, lateCheckIn: `${lateCountDisplay}` });
+
+                    if (result.insertedId) {
+                        res.status(200).json({ message: 'You are late today' });
+                    } else {
+                        res.json({ message: 'Check-in failed' });
+                    }
+                } else if (shiftInfo.shiftName === "General" && now >= initialGeneralShift && now <= generalShiftStart) {
+
+                    const result = await checkInCollections.insertOne(checkInInfo);
+
+                    if (result.insertedId) {
+                        res.status(200).json({ message: 'Check-in successful' });
+                    } else {
+                        res.json({ message: 'Check-in failed' });
+                    }
+                } else if (shiftInfo.shiftName === "General" && now > generalShiftStart && now <= generalShiftLateCount) {
+                    const lateCount = now - generalShiftStart; // Calculate how late the check-in is
+                    const totalSeconds = Math.floor(lateCount / 1000);
+                    const hours = Math.floor(totalSeconds / 3600) || 0;
+                    const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
+                    const lateCountDisplay = `${hours}h ${minutes}m`;
+
+                    const result = await checkInCollections.insertOne({ ...checkInInfo, lateCheckIn: `${lateCountDisplay}` });
 
                     if (result.insertedId) {
                         res.status(200).json({ message: 'You are late today' });
@@ -616,8 +647,14 @@ async function run() {
                         res.json({ message: 'Check-in failed' });
                     }
                 } else if (shiftInfo.shiftName === "Evening" && now > eveningShiftStart && now <= eveningShiftLateCount) {
+                    const lateCount = now - eveningShiftStartForLateCount;
 
-                    const result = await checkInCollections.insertOne(checkInInfo, { lateCheckIn: true });
+                    const totalSeconds = Math.floor(lateCount / 1000);
+                    const hours = Math.floor(totalSeconds / 3600) || 0;
+                    const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
+                    const lateCountDisplay = `${hours}h ${minutes}m`;
+
+                    const result = await checkInCollections.insertOne({ ...checkInInfo, lateCheckIn: `${lateCountDisplay}` });
 
                     if (result.insertedId) {
                         res.status(200).json({ message: 'You are late today' });
@@ -643,6 +680,9 @@ async function run() {
 
             const checkInInfo = await checkInCollections.findOne({ email, date });
             const employee = await employeeCollections.findOne({ email });
+            const isAttendance = await attendanceCollections.findOne({ email, date });
+            const startOTInfo = await OTStartCollections.findOne({ email, date });
+            const stopOTInfo = await OTStopCollections.findOne({ email, date });
 
             // Update attendance collection
             const inTime = checkInInfo.checkInTime;
@@ -654,6 +694,14 @@ async function run() {
             const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
             // const seconds = totalSeconds % 60;
             const workingDisplay = `${hours}h ${minutes}m`;
+
+            const OTStartTime = startOTInfo ? startOTInfo.startingOverTime : 0;
+            const OTStopTime = stopOTInfo ? stopOTInfo.OTStopTime : 0;
+            const calculateOTTime = OTStopTime - OTStartTime;
+            const otTotalSeconds = Math.floor(calculateOTTime / 1000);
+            const otHours = Math.floor(otTotalSeconds / 3600) || 0;
+            const otMinutes = Math.floor((otTotalSeconds % 3600) / 60) || 0;
+            const displayOTHour = `${otHours}h ${otMinutes}m`; // Format OT time as "Xh Ym"
 
 
             try {
@@ -688,9 +736,35 @@ async function run() {
                         checkOutTime: checkOutInfo.checkOutTime,
                         workingDisplay,
                         workingHourInSeconds: calculateTime, // Store the total milliseconds
+                        lateCheckIn: checkInInfo.lateCheckIn || false, // Preserve lateCheckIn status
                     };
-                    await attendanceCollections.insertOne(attendanceData);
-                    res.status(200).json({ message: 'Check-out successful' });
+                    if (isAttendance) {
+                        await attendanceCollections.updateOne(
+                            { email, date },
+                            {
+                                $set: {
+                                    fullName: employee.fullName, // Assuming fullName is part of employee document
+                                    designation: employee.designation, // Assuming designation is part of employee document
+                                    phoneNumber: employee.phoneNumber, // Assuming phoneNumber is part of employee document
+                                    NID: employee.NID, // Assuming NID is part of employee document
+                                    DOB: employee.DOB, // Assuming DOB is part of employee document
+                                    emergencyContact: employee.emergencyContact, // Assuming emergencyContact is part of employee document
+                                    address: employee.address, // Assuming address is part of employee document
+                                    status: employee.status, // Assuming status is part of employee document
+                                    month: checkOutInfo.month, // Assuming month is part of checkOutInfo
+                                    checkInTime: checkInInfo.checkInTime,
+                                    checkOutTime: checkOutInfo.checkOutTime,
+                                    workingDisplay,
+                                    workingHourInSeconds: calculateTime, // Store the total milliseconds
+                                    lateCheckIn: checkInInfo.lateCheckIn || false, // Preserve lateCheckIn status
+                                }
+                            }
+                        );
+                    } else {
+                        await attendanceCollections.insertOne(attendanceData);
+                        res.status(200).json({ message: 'Check-out successful' });
+                    }
+
                 } else {
                     res.status(500).json({ message: 'Check-out failed' });
                 }
@@ -727,7 +801,7 @@ async function run() {
 
 
             const startOTInfo = await OTStartCollections.findOne({ email, date });
-            const employee = await employeeCollections.findOne({ email });
+            const isAttendance = await attendanceCollections.findOne({ email, date });
 
             // Update attendance collection
             const otStartTime = startOTInfo.startingOverTime;
@@ -737,7 +811,7 @@ async function run() {
             const hours = Math.floor(totalSeconds / 3600) || 0;
             const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
             // const seconds = totalSeconds % 60;
-            const workingOTDisplay = `${hours}h ${minutes}m`;
+            const displayOTHour = `${hours}h ${minutes}m`;
 
 
             try {
@@ -749,7 +823,7 @@ async function run() {
                 });
 
                 if (existingOT) {
-                    return res.json({ message: 'Already stop OT out' });
+                    return res.json({ message: 'Already stop OT' });
                 }
 
                 const result = await OTStopCollections.insertOne({ date, month, OTStopTime, displayTime, email });
@@ -761,11 +835,28 @@ async function run() {
                         date,
                         otStartTime: startOTInfo.startingOverTime,
                         otStopTime: OTStopTime,
-                        workingOTDisplay,
-                        workingOTHourInSeconds: calculateOTTime, // Store the total milliseconds
+                        displayOTHour,
+                        totalOTInSeconds: calculateOTTime, // Store the total milliseconds
                     };
-                    await OTCalculateCollections.insertOne(OTCountingData);
-                    res.status(200).json({ message: 'OT stop successful' });
+                    if (isAttendance) {
+                        await attendanceCollections.updateOne(
+                            { email, date },
+                            {
+                                $set: {
+                                    otStartTime: startOTInfo.startingOverTime,
+                                    otStopTime: OTStopTime,
+                                    displayOTHour,
+                                    totalOTInSeconds: calculateOTTime, // Update total OT in seconds
+                                }
+                            }
+                        );
+                        res.status(200).json({ message: 'OT stop successful' });
+                    } else {
+                        await attendanceCollections.insertOne(OTCountingData);
+                        res.status(200).json({ message: 'OT stop successful' });
+                    }
+                    await shiftingCollections.deleteOne({ actualEmail: email, shiftName: "OT list" });
+
                 } else {
                     res.status(500).json({ message: 'OT stop failed' });
                 }
@@ -1534,7 +1625,6 @@ async function run() {
                     return res.status(401).send({ message: "Forbidden Access" });
                 };
                 const isExist = await OTStopCollections.findOne({ email: userMail, date: date });
-                console.log(isExist);
                 res.send(isExist);
 
             } catch (error) {
@@ -1551,8 +1641,8 @@ async function run() {
                 if (userMail !== email) {
                     return res.status(401).send({ message: "Forbidden Access" });
                 };
-                const isExist = await attendanceCollections.find({ email: userMail, month }).toArray();
-                res.send(isExist);
+                const result = await attendanceCollections.find({ email: userMail, month }).sort({ _id: -1 }).limit(7).toArray();
+                res.send(result);
 
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch attendance' });
@@ -1567,9 +1657,6 @@ async function run() {
             try {
                 const userEmail = req.body.email;
                 const fileBuffer = req.file?.buffer;
-
-                console.log("File", req.file);
-                console.log("Body", req.body);
 
 
                 if (!fileBuffer || !userEmail) {
