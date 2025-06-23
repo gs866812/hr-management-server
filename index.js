@@ -5,7 +5,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const moment = require("moment");
+const moment = require("moment-timezone");
 require('dotenv').config();
 const multer = require('multer');
 const { uploadToCloudinary } = require("./uploadPhoto");
@@ -575,19 +575,19 @@ async function run() {
                 const shiftInfo = await shiftingCollections.findOne({ email: checkInInfo.email });
 
 
-                const now = Date.now();
-                const initialMorningShift = moment().startOf('day').add(5, 'hours').add(45, 'minutes').valueOf();
-                const morningShiftStart = moment().startOf('day').add(6, 'hours').add(0, 'minutes').valueOf();
-                const morningShiftLateCount = moment().startOf('day').add(6, 'hours').add(30, 'minutes').valueOf();
+                const now = moment().tz("Asia/Dhaka"); // BD time
+                const initialMorningShift = now.clone().startOf('day').add(5, 'hours').add(45, 'minutes').valueOf();
+                const morningShiftStart = now.clone().startOf('day').add(6, 'hours').add(0, 'minutes').valueOf();
+                const morningShiftLateCount = now.clone().startOf('day').add(6, 'hours').add(30, 'minutes').valueOf();
 
-                const initialGeneralShift = moment().startOf('day').add(9, 'hours').add(45, 'minutes').valueOf();
-                const generalShiftStart = moment().startOf('day').add(10, 'hours').add(0, 'minutes').valueOf();
-                const generalShiftLateCount = moment().startOf('day').add(12, 'hours').add(30, 'minutes').valueOf();
+                const initialGeneralShift = now.clone().startOf('day').add(9, 'hours').add(45, 'minutes').valueOf();
+                const generalShiftStart = now.clone().startOf('day').add(10, 'hours').add(0, 'minutes').valueOf();
+                const generalShiftLateCount = now.clone().startOf('day').add(10, 'hours').add(30, 'minutes').valueOf();
 
-                const InitialEveningShift = moment().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf();
-                const eveningShiftStart = moment().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
-                const eveningShiftStartForLateCount = moment().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
-                const eveningShiftLateCount = moment().startOf('day').add(17, 'hours').add(30, 'minutes').valueOf();
+                const InitialEveningShift = now.clone().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf();
+                const eveningShiftStart = now.clone().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
+                const eveningShiftStartForLateCount = now.clone().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
+                const eveningShiftLateCount = now.clone().startOf('day').add(17, 'hours').add(30, 'minutes').valueOf();
 
 
 
