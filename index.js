@@ -582,7 +582,7 @@ async function run() {
 
                 const initialGeneralShift = now.clone().startOf('day').add(9, 'hours').add(45, 'minutes').valueOf();
                 const generalShiftStart = now.clone().startOf('day').add(10, 'hours').add(0, 'minutes').valueOf();
-                const generalShiftLateCount = now.clone().startOf('day').add(10, 'hours').add(30, 'minutes').valueOf();
+                const generalShiftLateCount = now.clone().startOf('day').add(12, 'hours').add(30, 'minutes').valueOf();
 
                 const InitialEveningShift = now.clone().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf();
                 const eveningShiftStart = now.clone().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
