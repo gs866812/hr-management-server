@@ -578,11 +578,11 @@ async function run() {
                 const now = Date.now();
                 const initialMorningShift = moment().startOf('day').add(5, 'hours').add(45, 'minutes').valueOf();
                 const morningShiftStart = moment().startOf('day').add(6, 'hours').add(0, 'minutes').valueOf();
-                const morningShiftLateCount = moment().startOf('day').add(12, 'hours').add(5, 'minutes').valueOf();
+                const morningShiftLateCount = moment().startOf('day').add(6, 'hours').add(30, 'minutes').valueOf();
 
                 const initialGeneralShift = moment().startOf('day').add(9, 'hours').add(45, 'minutes').valueOf();
                 const generalShiftStart = moment().startOf('day').add(10, 'hours').add(0, 'minutes').valueOf();
-                const generalShiftLateCount = moment().startOf('day').add(10, 'hours').add(30, 'minutes').valueOf();
+                const generalShiftLateCount = moment().startOf('day').add(11, 'hours').add(30, 'minutes').valueOf();
 
                 const InitialEveningShift = moment().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf();
                 const eveningShiftStart = moment().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
