@@ -1649,6 +1649,24 @@ async function run() {
             }
         });
         // ************************************************************************************************
+        app.get("/gethWorkingShift", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const findShifting = await shiftingCollections.findOne({ email: userMail});
+
+                res.send(findShifting.shiftName || "No Shift Assigned");
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch employee list' });
+            }
+        });
+        // ************************************************************************************************
 
 
 
