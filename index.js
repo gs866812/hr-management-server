@@ -1107,6 +1107,48 @@ async function run() {
                 res.status(500).json({ message: "Failed to add balance", error: error.message });
             }
         });
+        // *****************************************************************************************
+        app.put('/clients/:id', async (req, res) => {
+            try {
+                const clientId = req.params.id; // original client ID from the URL
+                const { clientId: newClientId, clientCountry: newCountry } = req.body;
+
+                if (!newClientId || !newCountry) {
+                    return res.json({ message: 'Client ID and Country are required.' });
+                }
+
+                // Check if newClientId already exists in another document (prevent duplicate IDs)
+                if (clientId !== newClientId) {
+                    const existingClient = await clientCollections.findOne({ clientID: newClientId });
+                    if (existingClient) {
+                        return res.json({ message: 'The new Client ID already exists.' });
+                    }
+                }
+
+                const result = await clientCollections.updateOne(
+                    { clientID: clientId },
+                    {
+                        $set: {
+                            clientID: newClientId,
+                            country: newCountry,
+                        },
+                    }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.json({ message: 'Client not found.' });
+                }
+
+                res.json({ message: 'Client updated successfully', modifiedCount: result.modifiedCount });
+
+            } catch (error) {
+                console.error('Error updating client:', error);
+                res.status(500).json({ message: 'Internal server error' });
+            }
+        });
+
+        // *****************************************************************************************
+
 
 
 
@@ -1658,7 +1700,7 @@ async function run() {
                     return res.status(401).send({ message: "Forbidden Access" });
                 }
 
-                const findShifting = await shiftingCollections.findOne({ email: userMail});
+                const findShifting = await shiftingCollections.findOne({ email: userMail });
 
                 res.send(findShifting.shiftName || "No Shift Assigned");
 
