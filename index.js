@@ -10,6 +10,10 @@ require('dotenv').config();
 const multer = require('multer');
 const { uploadToCloudinary } = require("./uploadPhoto");
 
+const XLSX = require("xlsx");
+const fs = require("fs");
+const path = require("path");
+
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -136,6 +140,33 @@ async function run() {
         const OTStopCollections = database.collection("OTStopList");
         const OTCalculateCollections = database.collection("OTCalculateList");
 
+        // *******************************************************************************************
+        async function exportAllEmployeesToExcel() {
+            try {
+                const employees = await employeeCollections
+                    .find({}, { projection: { _id: 0, email: 1, fullName: 1 } })
+                    .toArray();
+
+                if (!employees.length) {
+                    console.log("⚠️ No employee data found.");
+                    return;
+                }
+
+                const worksheet = XLSX.utils.json_to_sheet(employees);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Employees");
+
+                const filePath = path.join(__dirname, "employee_list.xlsx");
+                XLSX.writeFile(workbook, filePath);
+
+                console.log("✅ Excel file saved successfully:", filePath);
+            } catch (error) {
+                console.error("❌ Failed to generate Excel:", error);
+            }
+        };
+
+        exportAllEmployeesToExcel();
+        // *******************************************************************************************
         // *******************************************************************************************
         const date = moment(new Date()).format("DD-MMM-YYYY");
 
