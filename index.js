@@ -141,31 +141,31 @@ async function run() {
         const OTCalculateCollections = database.collection("OTCalculateList");
 
         // *******************************************************************************************
-        async function exportAllEmployeesToExcel() {
-            try {
-                const employees = await employeeCollections
-                    .find({}, { projection: { _id: 0, email: 1, fullName: 1 } })
-                    .toArray();
+        // async function exportAllEmployeesToExcel() {
+        //     try {
+        //         const employees = await employeeCollections
+        //             .find({}, { projection: { _id: 0, email: 1, fullName: 1 } })
+        //             .toArray();
 
-                if (!employees.length) {
-                    console.log("⚠️ No employee data found.");
-                    return;
-                }
+        //         if (!employees.length) {
+        //             console.log("⚠️ No employee data found.");
+        //             return;
+        //         }
 
-                const worksheet = XLSX.utils.json_to_sheet(employees);
-                const workbook = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(workbook, worksheet, "Employees");
+        //         const worksheet = XLSX.utils.json_to_sheet(employees);
+        //         const workbook = XLSX.utils.book_new();
+        //         XLSX.utils.book_append_sheet(workbook, worksheet, "Employees");
 
-                const filePath = path.join(__dirname, "employee_list.xlsx");
-                XLSX.writeFile(workbook, filePath);
+        //         const filePath = path.join(__dirname, "employee_list.xlsx");
+        //         XLSX.writeFile(workbook, filePath);
 
-                console.log("✅ Excel file saved successfully:", filePath);
-            } catch (error) {
-                console.error("❌ Failed to generate Excel:", error);
-            }
-        };
+        //         console.log("✅ Excel file saved successfully:", filePath);
+        //     } catch (error) {
+        //         console.error("❌ Failed to generate Excel:", error);
+        //     }
+        // };
 
-        exportAllEmployeesToExcel();
+        // exportAllEmployeesToExcel();
         // *******************************************************************************************
         // *******************************************************************************************
         const date = moment(new Date()).format("DD-MMM-YYYY");
