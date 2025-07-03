@@ -1179,6 +1179,31 @@ async function run() {
         });
 
         // *****************************************************************************************
+        app.put("/extendDeadline/:orderId", async (req, res) => {
+            try {
+                const id = req.params.orderId;
+                const {newDeadline} = req.body; // Assuming new deadline is passed in the request body
+
+
+                // Check if the order exists
+                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+
+                if (!isID) {
+                    return res.status(404).json({ message: "Order not found" });
+                }
+
+                // Update the order status to "In-progress"
+                const result = await localOrderCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { orderDeadLine: newDeadline } }
+                );
+
+                res.send(result);
+            } catch (error) {
+                res.status(500).json({ message: "Failed to update order status" });
+            }
+        });
+        // *****************************************************************************************
 
 
 
