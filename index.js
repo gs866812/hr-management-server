@@ -215,7 +215,6 @@ async function run() {
                 }
 
             } catch (error) {
-                console.error("Error adding expense:", error);
                 res.status(500).json({ message: 'Failed to add expense', error: error.message });
             }
         });
@@ -328,7 +327,6 @@ async function run() {
 
                 res.send(result);
             } catch (error) {
-                console.error('Error saving employee:', error);
                 res.status(500).json({
                     success: false,
                     message: 'Failed to register employee',
@@ -370,7 +368,6 @@ async function run() {
 
                 res.send(result);
             } catch (error) {
-                console.error('Error saving earnings:', error);
                 res.status(500).json({
                     success: false,
                     message: 'Failed to add earnings',
@@ -403,7 +400,6 @@ async function run() {
                 res.status(201).json({ message: 'Client added successfully', insertedId: result.insertedId });
 
             } catch (error) {
-                console.error('Error adding client:', error);
                 res.status(500).json({ message: 'Internal server error' });
             }
         });
@@ -560,7 +556,6 @@ async function run() {
                 });
 
             } catch (error) {
-                console.error('Error assigning shift:', error);
                 res.status(500).json({ message: 'Failed to assign shift' });
             }
         });
@@ -922,7 +917,6 @@ async function run() {
 
                 res.send(result);
             } catch (error) {
-                console.error(error);
                 res.status(500).json({ message: "Failed to update order status" });
             }
         });
@@ -948,7 +942,6 @@ async function run() {
 
                 res.send(result);
             } catch (error) {
-                console.error(error);
                 res.status(500).json({ message: "Failed to update order status" });
             }
         });
@@ -974,7 +967,6 @@ async function run() {
 
                 res.send(result);
             } catch (error) {
-                console.error(error);
                 res.status(500).json({ message: "Failed to update order status" });
             }
         });
@@ -1000,7 +992,6 @@ async function run() {
 
                 res.send(result);
             } catch (error) {
-                console.error(error);
                 res.status(500).json({ message: "Failed to update order status" });
             }
         });
@@ -1029,7 +1020,6 @@ async function run() {
 
                 res.send(result);
             } catch (error) {
-                console.error(error);
                 res.status(500).json({ message: "Failed to update order status" });
             }
         });
@@ -1097,7 +1087,6 @@ async function run() {
                 res.status(200).json({ message: "Expense updated successfully" });
 
             } catch (error) {
-                console.error("Error updating expense:", error);
                 res.status(500).json({ message: "Server error" });
             }
         });
@@ -1173,7 +1162,6 @@ async function run() {
                 res.json({ message: 'Client updated successfully', modifiedCount: result.modifiedCount });
 
             } catch (error) {
-                console.error('Error updating client:', error);
                 res.status(500).json({ message: 'Internal server error' });
             }
         });
@@ -1228,7 +1216,6 @@ async function run() {
 
                 res.json({ message: 'Employee updated successfully' });
             } catch (err) {
-                console.error('Update error:', err);
                 res.status(500).json({ message: 'Error updating employee' });
             }
         });
@@ -1339,7 +1326,6 @@ async function run() {
                 res.send({ expense, count, category, allExpense });
 
             } catch (error) {
-                console.error("Error fetching expenses:", error);
                 res.status(500).json({ message: 'Failed to fetch expense', error: error.message });
             }
         });
@@ -1792,7 +1778,6 @@ async function run() {
 
                 res.send({ message: 'Image uploaded successfully', url: imageUrl });
             } catch (error) {
-                console.error('❌ Upload error:', error);
                 res.status(500).send({ error: 'Image upload failed' });
             }
         });
