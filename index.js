@@ -1170,7 +1170,7 @@ async function run() {
         app.put("/extendDeadline/:orderId", async (req, res) => {
             try {
                 const id = req.params.orderId;
-                const {newDeadline} = req.body; // Assuming new deadline is passed in the request body
+                const { newDeadline } = req.body; // Assuming new deadline is passed in the request body
 
 
                 // Check if the order exists
@@ -1719,19 +1719,26 @@ async function run() {
         app.get("/getAttendance", verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
-                const month = req.query.month || moment(new Date()).format("MMM-YYYY");
                 const email = req.user.email;
+
 
                 if (userMail !== email) {
                     return res.status(401).send({ message: "Forbidden Access" });
-                };
-                const result = await attendanceCollections.find({ email: userMail, month }).sort({ _id: -1 }).limit(7).toArray();
-                res.send(result);
+                }
 
+                const result = await attendanceCollections
+                    .find({ email: userMail })
+                    .sort({ _id: -1 }) // Ensures latest 7 by creation time
+                    .limit(7)
+                    .toArray();
+                res.send(result);
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch attendance' });
+                console.error("Error fetching attendance:", error.message);
+                res.status(500).json({ message: "Failed to fetch attendance" });
             }
         });
+
+
         // ************************************************************************************************
         app.get("/gethWorkingShift", verifyToken, async (req, res) => {
             try {
