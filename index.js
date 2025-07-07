@@ -138,7 +138,7 @@ async function run() {
         const attendanceCollections = database.collection("attendanceList");
         const OTStartCollections = database.collection("OTStartList");
         const OTStopCollections = database.collection("OTStopList");
-        const OTCalculateCollections = database.collection("OTCalculateList");
+        const PFAndSalaryCollections = database.collection("PFAndSalaryList");
 
         // *******************************************************************************************
         // async function exportAllEmployeesToExcel() {
@@ -1493,7 +1493,6 @@ async function run() {
         });
         // ************************************************************************************************
         app.get("/getEarnings", verifyToken, async (req, res) => {
-
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
@@ -1502,14 +1501,62 @@ async function run() {
                     return res.status(401).send({ message: "Forbidden Access" });
                 }
 
-                const result = await earningsCollections.find().toArray();
+                const page = parseInt(req.query.page) || 1;
+                const size = parseInt(req.query.size) || 10;
+                const search = req.query.search || "";
+                const selectedMonth = req.query.month || "";
 
-                res.send(result);
+                const query = {
+                    ...(search && {
+                        $or: [
+                            { clientId: { $regex: new RegExp(search, 'i') } },
+                            { status: { $regex: new RegExp(search, 'i') } },
+                            { month: { $regex: new RegExp(search, 'i') } },
+                            { date: { $regex: new RegExp(search, 'i') } },
+                        ],
+                    }),
+                    ...(selectedMonth && { month: selectedMonth })
+                };
+
+                const totalCount = await earningsCollections.countDocuments(query);
+
+                const result = await earningsCollections.find(query)
+                    .skip((page - 1) * size)
+                    .limit(size)
+                    .sort({ _id: -1 })
+                    .toArray();
+
+                const totals = await earningsCollections.aggregate([
+                    { $match: query },
+                    {
+                        $group: {
+                            _id: null,
+                            totalImageQty: { $sum: "$imageQty" },
+                            totalUsd: { $sum: "$totalUsd" },
+                            totalRate: { $sum: "$convertRate" },
+                            totalBdt: { $sum: "$convertedBdt" },
+                            countRate: { $sum: 1 }
+                        }
+                    }
+                ]).toArray();
+
+                res.send({
+                    result,
+                    count: totalCount,
+                    totalSummary: {
+                        totalImageQty: totals[0]?.totalImageQty || 0,
+                        totalUsd: totals[0]?.totalUsd || 0,
+                        avgRate: totals[0]?.totalRate / (totals[0]?.countRate || 1),
+                        totalBdt: totals[0]?.totalBdt || 0,
+                    }
+                });
 
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch balance' });
+                res.status(500).json({ message: 'Failed to fetch earnings', error: error.message });
             }
         });
+
+
         // ************************************************************************************************
         app.get("/getEmployee", verifyToken, async (req, res) => {
 
@@ -1755,6 +1802,26 @@ async function run() {
 
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch employee list' });
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getSalaryAndPF", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const result = await PFAndSalaryCollections
+                    .find({ email: userMail })
+                    .toArray();
+                res.send(result);
+            } catch (error) {
+                console.error("Error fetching attendance:", error.message);
+                res.status(500).json({ message: "Failed to fetch attendance" });
             }
         });
         // ************************************************************************************************
