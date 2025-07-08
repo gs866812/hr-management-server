@@ -1492,6 +1492,7 @@ async function run() {
             }
         });
         // ************************************************************************************************
+        //getEarnings
         app.get("/getEarnings", verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
@@ -1526,6 +1527,8 @@ async function run() {
                     .sort({ _id: -1 })
                     .toArray();
 
+                const totalRev = await earningsCollections.find().toArray();
+
                 const totals = await earningsCollections.aggregate([
                     { $match: query },
                     {
@@ -1542,6 +1545,7 @@ async function run() {
 
                 res.send({
                     result,
+                    totalRev,
                     count: totalCount,
                     totalSummary: {
                         totalImageQty: totals[0]?.totalImageQty || 0,
@@ -1555,6 +1559,8 @@ async function run() {
                 res.status(500).json({ message: 'Failed to fetch earnings', error: error.message });
             }
         });
+
+        //earnings
 
 
         // ************************************************************************************************
