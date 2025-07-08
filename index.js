@@ -342,6 +342,7 @@ async function run() {
                 const clientID = req.body.clientId;
                 const fullData = { ...earningsData, date: moment(date).format("DD-MM-YYYY") };
                 const earningsAmount = req.body.convertedBdt;
+
                 const result = await earningsCollections.insertOne(fullData);
 
 
@@ -1330,6 +1331,7 @@ async function run() {
             }
         });
 
+
         // ************************************************************************************************
         app.get("/getLocalOrder", verifyToken, async (req, res) => {
             try {
@@ -1815,6 +1817,7 @@ async function run() {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
+
 
 
                 if (userMail !== email) {
