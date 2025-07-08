@@ -1305,6 +1305,7 @@ async function run() {
                 if (!expenseCollections) {
                     return res.status(500).json({ message: "Database connection issue" });
                 }
+                const allExpense = await expenseCollections.find().toArray();
 
                 let expense;
                 if (disablePagination) {
@@ -1322,7 +1323,7 @@ async function run() {
                 }
 
                 const count = await expenseCollections.countDocuments(query);
-                const allExpense = await expenseCollections.find().toArray();
+                
                 const category = await categoryCollections.find({}).toArray();
                 res.send({ expense, count, category, allExpense });
 
