@@ -1323,7 +1323,7 @@ async function run() {
                 }
 
                 const count = await expenseCollections.countDocuments(query);
-                
+
                 const category = await categoryCollections.find({}).toArray();
                 res.send({ expense, count, category, allExpense });
 
@@ -1834,6 +1834,26 @@ async function run() {
                 res.status(500).json({ message: "Failed to fetch attendance" });
             }
         });
+        // ************************************************************************************************
+        // Get a single shareholder by ID
+        app.get("/getSingleShareholder/:id", verifyToken, async (req, res) => {
+            try {
+                const id = req.params.id;
+                const objectId = new ObjectId(id);
+
+                const isShareholder = await shareHoldersCollections.findOne({ _id: objectId });
+                const shareholder = await profitShareCollections.find({email: isShareholder.email}).toArray();
+
+                if (!shareholder) {
+                    return res.status(404).json({ message: 'Shareholder not found' });
+                }
+
+                res.send(shareholder);
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch shareholder', error: error.message });
+            }
+        });
+
         // ************************************************************************************************
 
 
