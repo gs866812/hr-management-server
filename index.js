@@ -139,6 +139,7 @@ async function run() {
         const OTStartCollections = database.collection("OTStartList");
         const OTStopCollections = database.collection("OTStopList");
         const PFAndSalaryCollections = database.collection("PFAndSalaryList");
+        const monthlyProfitCollections = database.collection("monthlyProfitList");
 
         // *******************************************************************************************
         // async function exportAllEmployeesToExcel() {
@@ -1842,7 +1843,7 @@ async function run() {
                 const objectId = new ObjectId(id);
 
                 const isShareholder = await shareHoldersCollections.findOne({ _id: objectId });
-                const shareholder = await profitShareCollections.find({email: isShareholder.email}).toArray();
+                const shareholder = await profitShareCollections.find({ email: isShareholder.email }).toArray();
 
                 if (!shareholder) {
                     return res.status(404).json({ message: 'Shareholder not found' });
@@ -1853,6 +1854,108 @@ async function run() {
                 res.status(500).json({ message: 'Failed to fetch shareholder', error: error.message });
             }
         });
+
+        // ************************************************************************************************
+        // app.get('/calculateMonthlyProfit', async (req, res) => {
+        //     try {
+        //         const allEarnings = await earningsCollections.find().toArray();
+        //         const allExpenses = await expenseCollections.find().toArray();
+
+        //         const profitByMonth = {};
+
+        //         const monthMap = {
+        //             'January': 1, 'February': 2, 'March': 3, 'April': 4,
+        //             'May': 5, 'June': 6, 'July': 7, 'August': 8,
+        //             'September': 9, 'October': 10, 'November': 11, 'December': 12
+        //         };
+
+        //         // Process Earnings using 'month' and fallback 'date' for year
+        //         for (const earn of allEarnings) {
+        //             if (!earn?.month) {
+        //                 console.log("Skipping earning due to missing month:", earn);
+        //                 continue;
+        //             }
+
+        //             const rawMonth = earn.month.toString().trim();
+        //             const capitalizedMonth = rawMonth.charAt(0).toUpperCase() + rawMonth.slice(1).toLowerCase();
+        //             const monthIndex = monthMap[capitalizedMonth];
+
+        //             let year = earn.year?.toString().trim();
+
+        //             if (!year && earn.date && typeof earn.date === 'string') {
+        //                 const parts = earn.date.split('-'); // Expecting DD-MM-YYYY
+        //                 if (parts.length === 3) {
+        //                     year = parts[2];
+        //                 }
+        //             }
+
+        //             if (!monthIndex || !year) {
+        //                 console.log("Skipping earning due to invalid month or year:", earn);
+        //                 continue;
+        //             }
+
+        //             const key = `${monthIndex}-${year}`;
+
+        //             if (!profitByMonth[key]) {
+        //                 profitByMonth[key] = { earnings: 0, expense: 0 };
+        //             }
+
+        //             const value = Number(earn.convertedBdt) || 0;
+        //             profitByMonth[key].earnings += value;
+        //             console.log(`Earning added for ${key}: +${value}`);
+        //         }
+
+        //         // Process Expenses using expenseDate
+        //         for (const exp of allExpenses) {
+        //             if (!exp?.expenseDate) continue;
+        //             const expDate = new Date(exp.expenseDate);
+        //             if (isNaN(expDate.getTime())) continue;
+
+        //             const month = expDate.getMonth() + 1; // JS month is 0-indexed
+        //             const year = expDate.getFullYear();
+        //             const key = `${month}-${year}`;
+
+        //             if (!profitByMonth[key]) {
+        //                 profitByMonth[key] = { earnings: 0, expense: 0 };
+        //             }
+
+        //             profitByMonth[key].expense += Number(exp.expenseAmount) || 0;
+        //         }
+
+        //         const documents = [];
+        //         for (const key in profitByMonth) {
+        //             const [month, year] = key.split('-');
+        //             const monthName = new Date(`${year}-${month}-01`).toLocaleString('default', { month: 'long' });
+        //             const earnings = parseFloat(profitByMonth[key].earnings.toFixed(2));
+        //             const expense = parseFloat(profitByMonth[key].expense.toFixed(2));
+        //             const profit = parseFloat((earnings - expense).toFixed(2));
+
+        //             documents.push({
+        //                 month: monthName,
+        //                 year,
+        //                 earnings,
+        //                 expense,
+        //                 profit
+        //             });
+        //         }
+
+        //         const insertResult = await monthlyProfitCollections.insertMany(documents);
+
+        //         res.send({
+        //             message: 'Monthly profit calculated and stored successfully.',
+        //             insertedCount: insertResult.insertedCount,
+        //             data: documents
+        //         });
+        //     } catch (error) {
+        //         res.status(500).send({ message: 'Error calculating and storing profit', error: error.message });
+        //     }
+        // });
+        //calculate and store monthly profit
+
+
+
+
+
 
         // ************************************************************************************************
 
