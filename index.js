@@ -566,24 +566,57 @@ async function run() {
         app.post('/addProfitShareData', async (req, res) => {
             try {
                 const shareData = req.body;
+                const { month, year, sharedProfitBalance } = shareData;
+
+                const date = new Date().toISOString(); // Ensure date is defined
                 const profitShareData = { ...shareData, date };
+
+                // Check if enough profit is available for the selected month
+                const monthDoc = await monthlyProfitCollections.findOne({ month, year });
+
+                if (!monthDoc) {
+                    return res.json({
+                        message: `No profit record found for ${month} ${year}`
+                    });
+                }
+
+                if (parseFloat(monthDoc.profit) < parseFloat(sharedProfitBalance)) {
+                    return res.json({
+                        message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${sharedProfitBalance}`
+                    });
+                }
+
+                // Insert profit share record
                 const result = await profitShareCollections.insertOne(profitShareData);
 
+                // Deduct from main balance
                 await mainBalanceCollections.updateOne(
                     {},
-                    {
-                        $inc: { mainBalance: - shareData.sharedProfitBalance }
-                    });
+                    { $inc: { mainBalance: -sharedProfitBalance } }
+                );
 
-                await hrTransactionCollections.insertOne({ value: shareData.sharedProfitBalance, note: "Profit share", date, type: "Share" });
+                // Deduct from selected month's profit
+                await monthlyProfitCollections.updateOne(
+                    { month, year },
+                    { $inc: { profit: -sharedProfitBalance } }
+                );
+
+                // Log to HR transactions
+                await hrTransactionCollections.insertOne({
+                    value: sharedProfitBalance,
+                    note: `Profit share for ${month} ${year}`,
+                    date,
+                    type: 'Share'
+                });
 
                 res.send(result);
 
-
             } catch (error) {
+                console.error('Error sharing profit:', error);
                 res.status(500).json({ message: 'Failed to share profit' });
             }
         });
+
         //************************************************************************************************
         app.post('/employee/checkIn', async (req, res) => {
             const checkInInfo = req.body;
@@ -1667,6 +1700,8 @@ async function run() {
                 res.status(500).json({ message: 'Failed to fetch employee list' });
             }
         });
+
+        // *************************************************************************************************
         app.get("/getShareHolders", verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
@@ -1852,6 +1887,82 @@ async function run() {
                 res.send(shareholder);
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch shareholder', error: error.message });
+            }
+        });
+
+        // ************************************************************************************************
+        app.get("/getMonthlyProfit", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const result = await monthlyProfitCollections.find().toArray();
+                res.send(result);
+
+            } catch (error) {
+                res.status(500).json({ message: 'Failed to fetch share holders list' });
+            }
+        });
+        // ************************************************************************************************
+        app.post('/addMonthlyProfitDistribution', async (req, res) => {
+            try {
+                const { month, year, sharedAmount, userName } = req.body;
+                const date = new Date();
+
+                const monthDoc = await monthlyProfitCollections.findOne({ month, year });
+                if (!monthDoc) {
+                    return res.json({ message: `No profit record found for ${month} ${year}` });
+                }
+
+                if (parseFloat(monthDoc.profit) < parseFloat(sharedAmount)) {
+                    return res.json({
+                        message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${sharedAmount}`
+                    });
+                }
+
+                const shares = [
+                    { email: 'asad4boss@gmail.com', percent: 40 },
+                    { email: 'masumkamal2024@gmail.com', percent: 20 },
+                    { email: 'arifulislamarif1971@gmail.com', percent: 20 },
+                    { email: 'kabiritnext@gmail.com', percent: 20 }
+                ];
+
+                // Fetch full shareholder info from DB (assuming you have their data stored)
+                const shareholders = await shareHoldersCollections.find({
+                    email: { $in: shares.map(s => s.email) }
+                }).toArray();
+
+                const shareData = shares.map(s => {
+                    const holder = shareholders.find(h => h.email === s.email);
+                    return {
+                        name: holder?.shareHoldersName || '',
+                        mobile: holder?.mobile || '',
+                        email: s.email,
+                        sharedPercent: s.percent,
+                        sharedProfitBalance: parseFloat((sharedAmount * s.percent / 100).toFixed(2)),
+                        totalProfitBalance: parseFloat(monthDoc.profit),
+                        month,
+                        year,
+                        date,
+                        userName
+                    };
+                });
+
+                const result = await profitShareCollections.insertMany(shareData);
+
+                await monthlyProfitCollections.updateOne(
+                    { month, year },
+                    { $inc: { profit: -sharedAmount } }
+                );
+
+                res.send({ message: 'Profit shared successfully', insertedCount: result.insertedCount });
+            } catch (error) {
+                console.error(error);
+                res.json({ message: 'Failed to share monthly profit' });
             }
         });
 
