@@ -1925,10 +1925,11 @@ async function run() {
                 }
 
                 const shares = [
-                    { email: 'asad4boss@gmail.com', percent: 40 },
-                    { email: 'masumkamal2024@gmail.com', percent: 20 },
-                    { email: 'arifulislamarif1971@gmail.com', percent: 20 },
-                    { email: 'kabiritnext@gmail.com', percent: 20 }
+                    { email: 'asad4boss@gmail.com', percent: 36 },
+                    { email: 'masumkamal2024@gmail.com', percent: 22 },
+                    { email: 'arifulislamarif1971@gmail.com', percent: 22 },
+                    { email: 'kabiritnext@gmail.com', percent: 10 },
+                    { email: 'asad4graphics@gmail.com', percent: 10 }
                 ];
 
                 // Fetch full shareholder info from DB (assuming you have their data stored)
@@ -1961,106 +1962,148 @@ async function run() {
 
                 res.send({ message: 'Profit shared successfully', insertedCount: result.insertedCount });
             } catch (error) {
-                console.error(error);
                 res.json({ message: 'Failed to share monthly profit' });
             }
         });
 
         // ************************************************************************************************
-        // app.get('/calculateMonthlyProfit', async (req, res) => {
-        //     try {
-        //         const allEarnings = await earningsCollections.find().toArray();
-        //         const allExpenses = await expenseCollections.find().toArray();
+        app.post('/transferMonthlyProfit', async (req, res) => {
+            try {
+                const { month, year, transferAmount, userName } = req.body;
+                const date = new Date();
 
-        //         const profitByMonth = {};
+                const monthDoc = await monthlyProfitCollections.findOne({ month, year });
+                if (!monthDoc) {
+                    return res.json({ message: `No profit record found for ${month} ${year}` });
+                }
 
-        //         const monthMap = {
-        //             'January': 1, 'February': 2, 'March': 3, 'April': 4,
-        //             'May': 5, 'June': 6, 'July': 7, 'August': 8,
-        //             'September': 9, 'October': 10, 'November': 11, 'December': 12
-        //         };
+                if (parseFloat(monthDoc.profit) < parseFloat(transferAmount)) {
+                    return res.json({
+                        message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${sharedAmount}`
+                    });
+                }
 
-        //         // Process Earnings using 'month' and fallback 'date' for year
-        //         for (const earn of allEarnings) {
-        //             if (!earn?.month) {
-        //                 console.log("Skipping earning due to missing month:", earn);
-        //                 continue;
-        //             }
+                const shareholder = await shareHoldersCollections.findOne({ email: 'asadexpert1@gmail.com' });
 
-        //             const rawMonth = earn.month.toString().trim();
-        //             const capitalizedMonth = rawMonth.charAt(0).toUpperCase() + rawMonth.slice(1).toLowerCase();
-        //             const monthIndex = monthMap[capitalizedMonth];
 
-        //             let year = earn.year?.toString().trim();
+                const result = await profitShareCollections.insertOne({
+                    name: shareholder?.shareHoldersName || '',
+                    mobile: shareholder?.mobile || '',
+                    email: 'asadexpert1@gmail.com',
+                    transferProfitBalance: parseFloat(transferAmount),
+                    totalProfitBalance: parseFloat(monthDoc.profit),
+                    month,
+                    year,
+                    date,
+                    userName
+                });
 
-        //             if (!year && earn.date && typeof earn.date === 'string') {
-        //                 const parts = earn.date.split('-'); // Expecting DD-MM-YYYY
-        //                 if (parts.length === 3) {
-        //                     year = parts[2];
-        //                 }
-        //             }
+                await monthlyProfitCollections.updateOne(
+                    { month, year },
+                    { $inc: { profit: -transferAmount } }
+                );
 
-        //             if (!monthIndex || !year) {
-        //                 console.log("Skipping earning due to invalid month or year:", earn);
-        //                 continue;
-        //             }
+                res.send({ message: 'Profit transfer successfully', insertedId: result.insertedId });
+            } catch (error) {
+                console.error(error);
+                res.json({ message: 'Failed to transfer monthly profit' });
+            }
+        });
+        // ************************************************************************************************
+        app.get('/calculateMonthlyProfit', async (req, res) => {
+            try {
+                const allEarnings = await earningsCollections.find().toArray();
+                const allExpenses = await expenseCollections.find().toArray();
 
-        //             const key = `${monthIndex}-${year}`;
+                const profitByMonth = {};
 
-        //             if (!profitByMonth[key]) {
-        //                 profitByMonth[key] = { earnings: 0, expense: 0 };
-        //             }
+                const monthMap = {
+                    'January': 1, 'February': 2, 'March': 3, 'April': 4,
+                    'May': 5, 'June': 6, 'July': 7, 'August': 8,
+                    'September': 9, 'October': 10, 'November': 11, 'December': 12
+                };
 
-        //             const value = Number(earn.convertedBdt) || 0;
-        //             profitByMonth[key].earnings += value;
-        //             console.log(`Earning added for ${key}: +${value}`);
-        //         }
+                // Process Earnings using 'month' and fallback 'date' for year
+                for (const earn of allEarnings) {
+                    if (!earn?.month) {
+                        console.log("Skipping earning due to missing month:", earn);
+                        continue;
+                    }
 
-        //         // Process Expenses using expenseDate
-        //         for (const exp of allExpenses) {
-        //             if (!exp?.expenseDate) continue;
-        //             const expDate = new Date(exp.expenseDate);
-        //             if (isNaN(expDate.getTime())) continue;
+                    const rawMonth = earn.month.toString().trim();
+                    const capitalizedMonth = rawMonth.charAt(0).toUpperCase() + rawMonth.slice(1).toLowerCase();
+                    const monthIndex = monthMap[capitalizedMonth];
 
-        //             const month = expDate.getMonth() + 1; // JS month is 0-indexed
-        //             const year = expDate.getFullYear();
-        //             const key = `${month}-${year}`;
+                    let year = earn.year?.toString().trim();
 
-        //             if (!profitByMonth[key]) {
-        //                 profitByMonth[key] = { earnings: 0, expense: 0 };
-        //             }
+                    if (!year && earn.date && typeof earn.date === 'string') {
+                        const parts = earn.date.split('-'); // Expecting DD-MM-YYYY
+                        if (parts.length === 3) {
+                            year = parts[2];
+                        }
+                    }
 
-        //             profitByMonth[key].expense += Number(exp.expenseAmount) || 0;
-        //         }
+                    if (!monthIndex || !year) {
+                        console.log("Skipping earning due to invalid month or year:", earn);
+                        continue;
+                    }
 
-        //         const documents = [];
-        //         for (const key in profitByMonth) {
-        //             const [month, year] = key.split('-');
-        //             const monthName = new Date(`${year}-${month}-01`).toLocaleString('default', { month: 'long' });
-        //             const earnings = parseFloat(profitByMonth[key].earnings.toFixed(2));
-        //             const expense = parseFloat(profitByMonth[key].expense.toFixed(2));
-        //             const profit = parseFloat((earnings - expense).toFixed(2));
+                    const key = `${monthIndex}-${year}`;
 
-        //             documents.push({
-        //                 month: monthName,
-        //                 year,
-        //                 earnings,
-        //                 expense,
-        //                 profit
-        //             });
-        //         }
+                    if (!profitByMonth[key]) {
+                        profitByMonth[key] = { earnings: 0, expense: 0 };
+                    }
 
-        //         const insertResult = await monthlyProfitCollections.insertMany(documents);
+                    const value = Number(earn.convertedBdt) || 0;
+                    profitByMonth[key].earnings += value;
+                    console.log(`Earning added for ${key}: +${value}`);
+                }
 
-        //         res.send({
-        //             message: 'Monthly profit calculated and stored successfully.',
-        //             insertedCount: insertResult.insertedCount,
-        //             data: documents
-        //         });
-        //     } catch (error) {
-        //         res.status(500).send({ message: 'Error calculating and storing profit', error: error.message });
-        //     }
-        // });
+                // Process Expenses using expenseDate
+                for (const exp of allExpenses) {
+                    if (!exp?.expenseDate) continue;
+                    const expDate = new Date(exp.expenseDate);
+                    if (isNaN(expDate.getTime())) continue;
+
+                    const month = expDate.getMonth() + 1; // JS month is 0-indexed
+                    const year = expDate.getFullYear();
+                    const key = `${month}-${year}`;
+
+                    if (!profitByMonth[key]) {
+                        profitByMonth[key] = { earnings: 0, expense: 0 };
+                    }
+
+                    profitByMonth[key].expense += Number(exp.expenseAmount) || 0;
+                }
+
+                const documents = [];
+                for (const key in profitByMonth) {
+                    const [month, year] = key.split('-');
+                    const monthName = new Date(`${year}-${month}-01`).toLocaleString('default', { month: 'long' });
+                    const earnings = parseFloat(profitByMonth[key].earnings.toFixed(2));
+                    const expense = parseFloat(profitByMonth[key].expense.toFixed(2));
+                    const profit = parseFloat((earnings - expense).toFixed(2));
+
+                    documents.push({
+                        month: monthName,
+                        year,
+                        earnings,
+                        expense,
+                        profit
+                    });
+                }
+
+                const insertResult = await monthlyProfitCollections.insertMany(documents);
+
+                res.send({
+                    message: 'Monthly profit calculated and stored successfully.',
+                    insertedCount: insertResult.insertedCount,
+                    data: documents
+                });
+            } catch (error) {
+                res.status(500).send({ message: 'Error calculating and storing profit', error: error.message });
+            }
+        });
         //calculate and store monthly profit
 
 
@@ -2099,6 +2142,17 @@ async function run() {
                 res.status(500).send({ error: 'Image upload failed' });
             }
         });
+        // ************************************************************************************************
+        app.post('/addShareHolder', async (req, res) => {
+            try {
+                const data = req.body;
+                const result = await shareHoldersCollections.insertOne(data);
+                res.send(result);
+            } catch (err) {
+                res.status(500).json({ message: "Error adding shareholder" });
+            }
+        });
+
         // ************************************************************************************************
 
         console.log(
