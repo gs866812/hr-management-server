@@ -23,7 +23,7 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors(
     {
-        origin: ["http://localhost:5173", "https://app.webbriks.com"],
+        origin: ["https://app.webbriks.com"],
         credentials: true,
     }
 ));
