@@ -23,7 +23,7 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors(
     {
-        origin: ["https://app.webbriks.com"],
+        origin: ["http://localhost:5173", "https://app.webbriks.com"],
         credentials: true,
     }
 ));
@@ -140,6 +140,36 @@ async function run() {
         const OTStopCollections = database.collection("OTStopList");
         const PFAndSalaryCollections = database.collection("PFAndSalaryList");
         const monthlyProfitCollections = database.collection("monthlyProfitList");
+        const unpaidCollections = database.collection("unpaidList");
+
+        // ******************store unpaid once********************************************************
+        // const unpaidEntries = await earningsCollections.find({ status: { $ne: 'Paid' } }).toArray();
+
+        // const monthTotals = {};
+
+        // unpaidEntries.forEach(entry => {
+        //     const month = entry.month;
+        //     if (!monthTotals[month]) {
+        //         monthTotals[month] = {
+        //             month,
+        //             totalConvertedBdt: 0,
+        //             status: 'Unpaid',
+        //         };
+        //     }
+
+        //     monthTotals[month].totalConvertedBdt += parseFloat(entry.convertedBdt || 0);
+        // });
+
+        // // Step 3: Convert to array and insert into unpaidCollections
+        // const unpaidData = Object.values(monthTotals);
+
+        // if (unpaidData.length > 0) {
+        //     await unpaidCollections.insertMany(unpaidData);
+        //     console.log(`✅ Inserted ${unpaidData.length} month-wise unpaid summaries.`);
+        // } else {
+        //     console.log('⚠️ No unpaid entries found.');
+        // }
+
 
         // *******************************************************************************************
         // async function exportAllEmployeesToExcel() {
@@ -167,8 +197,8 @@ async function run() {
         // };
 
         // exportAllEmployeesToExcel();
-        // *******************************************************************************************
-        // *******************************************************************************************
+        // *****************************************************************************************
+        // ******************************************************************************************
         const date = moment(new Date()).format("DD-MMM-YYYY");
 
         // *******************************************************************************************
