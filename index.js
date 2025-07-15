@@ -2135,11 +2135,29 @@ async function run() {
             }
         });
         //calculate and store monthly profit
+        // ************************************************************************************************
+        app.get("/getUnpaidAmount", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
 
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
 
+                const unpaidData = await unpaidCollections.find().toArray();
 
+                // ✅ Use reduce to calculate the total unpaid amount
+                const totalUnpaid = unpaidData.reduce((sum, item) => {
+                    return sum + parseFloat(item.totalConvertedBdt || 0);
+                }, 0);
 
+                res.send({ totalUnpaid });
 
+            } catch (error) {
+                res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
+            }
+        });
 
         // ************************************************************************************************
 
