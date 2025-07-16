@@ -23,7 +23,7 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors(
     {
-        origin: ["http://localhost:5173", "https://app.webbriks.com"],
+        origin: ["https://app.webbriks.com"],
         credentials: true,
     }
 ));
@@ -369,10 +369,57 @@ async function run() {
         app.post('/addEarnings', async (req, res) => {
             try {
                 const earningsData = req.body;
+                const { month, status, convertedBdt } = req.body;
                 const date = new Date();
+                const year = moment(date).format("YYYY");
                 const clientID = req.body.clientId;
                 const fullData = { ...earningsData, date: moment(date).format("DD-MM-YYYY") };
                 const earningsAmount = req.body.convertedBdt;
+
+                if (status === 'Unpaid') {
+                    const findMonth = await unpaidCollections.findOne({ month });
+                    if (findMonth) {
+                        // If month already exists, update the totalConvertedBdt
+                        await unpaidCollections.updateOne(
+                            { month },
+                            { $inc: { totalConvertedBdt: earningsAmount } }
+                        );
+                    } else {
+                        // If month does not exist, create a new entry
+                        await unpaidCollections.insertOne({
+                            month,
+                            totalConvertedBdt: earningsAmount,
+                            status: 'Unpaid',
+                            year
+                        });
+                    }
+                };
+                
+                const findMonthInMonthlyProfit = await monthlyProfitCollections.findOne({ month, year });
+
+                if (findMonthInMonthlyProfit) {
+                    // If month already exists, update the earnings and profit
+                    await monthlyProfitCollections.updateOne(
+                        { month, year },
+                        {
+                            $inc: {
+                                earnings: earningsAmount,
+                                profit: earningsAmount
+                            }
+                        }
+                    );
+                } else {
+                    // If month does not exist, create a new entry
+                    await monthlyProfitCollections.insertOne({
+                        month,
+                        year,
+                        earnings: earningsAmount,
+                        expense: 0,
+                        profit: earningsAmount
+                    });
+                }
+
+
 
                 const result = await earningsCollections.insertOne(fullData);
 
