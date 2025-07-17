@@ -23,13 +23,15 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors(
     {
-        origin: ["https://app.webbriks.com"],
+        origin: process.env.FRONTEND_URL,
         credentials: true,
     }
 ));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.json());
+
+
 
 const TOKEN_SECRET = process.env.TOKEN_SECRET;
 // ************************************************************************************************
@@ -112,6 +114,7 @@ app.post('/logout', (req, res) => {
     res.status(200).json({ message: 'Logged out successfully' });
 });
 // ************************************************************************************************
+
 // ************************************************************************************************
 
 async function run() {
@@ -205,6 +208,10 @@ async function run() {
         app.post("/addExpense", async (req, res) => {
             try {
                 const expenseData = req.body;
+                const month = moment(expenseData.expenseDate).format('MMMM');
+                const year = moment(expenseData.expenseDate).format('YYYY');
+
+
                 const mail = req.body.userMail;
                 const existingCategory = await categoryCollections.findOne({ expenseCategory: expenseData.expenseCategory });
 
@@ -214,6 +221,32 @@ async function run() {
                 const availableBalance = await hrBalanceCollections.findOne();
                 const availableMainBalance = await mainBalanceCollections.findOne();
                 const expenseBalance = expenseData.expenseAmount;
+
+                const findMonthInMonthlyProfit = await monthlyProfitCollections.findOne({ month, year });
+                if (findMonthInMonthlyProfit) {
+                    // If month already exists, update the earnings and profit
+                    await monthlyProfitCollections.updateOne(
+                        { month, year },
+                        {
+                            $inc: {
+
+                                expense: expenseBalance,
+                                profit: -expenseBalance
+                            }
+                        }
+                    );
+                } else {
+                    // If month does not exist, create a new entry
+                    await monthlyProfitCollections.insertOne({
+                        month,
+                        year,
+                        earnings: 0,
+                        expense: expenseBalance,
+                        profit: -expenseBalance
+                    });
+                }
+
+
 
                 const userRole = await userCollections.findOne({ email: mail });
 
@@ -369,7 +402,7 @@ async function run() {
         app.post('/addEarnings', async (req, res) => {
             try {
                 const earningsData = req.body;
-                const { month, status, convertedBdt } = req.body;
+                const { month, status } = req.body;
                 const date = new Date();
                 const year = moment(date).format("YYYY");
                 const clientID = req.body.clientId;
@@ -394,7 +427,7 @@ async function run() {
                         });
                     }
                 };
-                
+
                 const findMonthInMonthlyProfit = await monthlyProfitCollections.findOne({ month, year });
 
                 if (findMonthInMonthlyProfit) {
