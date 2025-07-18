@@ -2239,6 +2239,30 @@ async function run() {
             }
         });
 
+        // *************************************************************************************************
+        app.get("/getSharedProfit", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const sharedProfit = await profitShareCollections.find().toArray();
+
+                // ✅ Use reduce to calculate the total unpaid amount
+                const totalProfitShared = sharedProfit.reduce((sum, item) => {
+                    return sum + parseFloat(item.sharedProfitBalance || 0);
+                }, 0);
+
+                res.send({ totalProfitShared });
+
+            } catch (error) {
+                res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
+            }
+        });
+
         // ************************************************************************************************
 
 
