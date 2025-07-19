@@ -2253,7 +2253,7 @@ async function run() {
 
                 // ✅ Use reduce to calculate the total unpaid amount
                 const totalProfitShared = sharedProfit.reduce((sum, item) => {
-                    return sum + parseFloat(item.sharedProfitBalance || 0);
+                    return sum + parseFloat(item.sharedProfitBalance || item.transferProfitBalance);
                 }, 0);
 
                 res.send({ totalProfitShared });
