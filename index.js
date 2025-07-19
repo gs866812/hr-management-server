@@ -222,6 +222,7 @@ async function run() {
                 const availableMainBalance = await mainBalanceCollections.findOne();
                 const expenseBalance = expenseData.expenseAmount;
 
+
                 const findMonthInMonthlyProfit = await monthlyProfitCollections.findOne({ month, year });
                 if (findMonthInMonthlyProfit) {
                     // If month already exists, update the earnings and profit
@@ -231,52 +232,39 @@ async function run() {
                             $inc: {
 
                                 expense: expenseBalance,
-                                profit: -expenseBalance
+                                profit: -expenseBalance,
+                                remaining: -expenseBalance,
                             }
                         }
                     );
                 } else {
                     // If month does not exist, create a new entry
-                    await monthlyProfitCollections.insertOne({
-                        month,
-                        year,
-                        earnings: 0,
-                        expense: expenseBalance,
-                        profit: -expenseBalance
-                    });
-                }
-
-
-
-                const userRole = await userCollections.findOne({ email: mail });
-
-                if (userRole.role == "HR-ADMIN") {
-                    if (availableBalance.balance >= expenseBalance) {
-                        const addExpense = await expenseCollections.insertOne(expenseData);
-                        await hrBalanceCollections.updateOne(
-                            {},
-                            {
-                                $inc: { balance: - expenseBalance }
-                            });
-                        await hrTransactionCollections.insertOne({ value: expenseBalance, note: expenseData.expenseNote, date, type: "Expense" });
-                        res.send(addExpense);
-                    } else {
-                        res.json('Insufficient balance');
-                    }
-                } else {
                     if (availableMainBalance.mainBalance >= expenseBalance) {
-                        const addExpense = await expenseCollections.insertOne(expenseData);
-                        await mainBalanceCollections.updateOne(
-                            {},
-                            {
-                                $inc: { mainBalance: - expenseBalance }
-                            });
-                        await mainTransactionCollections.insertOne({ amount: expenseBalance, note: expenseData.expenseNote, date, type: "Expense" });
-                        res.send(addExpense);
-                    } else {
-                        res.json('Insufficient balance');
+                        await monthlyProfitCollections.insertOne({
+                            month,
+                            year,
+                            earnings: 0,
+                            expense: expenseBalance,
+                            profit: -expenseBalance,
+                            remaining: -expenseBalance,
+                            shared: [],
+                        });
                     }
                 }
+
+                if (availableMainBalance.mainBalance >= expenseBalance) {
+                    const addExpense = await expenseCollections.insertOne(expenseData);
+                    await mainBalanceCollections.updateOne(
+                        {},
+                        {
+                            $inc: { mainBalance: - expenseBalance }
+                        });
+                    await mainTransactionCollections.insertOne({ amount: expenseBalance, note: expenseData.expenseNote, date, type: "Expense" });
+                    res.send(addExpense);
+                } else {
+                    res.json('Insufficient balance');
+                }
+
 
             } catch (error) {
                 res.status(500).json({ message: 'Failed to add expense', error: error.message });
@@ -437,7 +425,8 @@ async function run() {
                         {
                             $inc: {
                                 earnings: earningsAmount,
-                                profit: earningsAmount
+                                profit: earningsAmount,
+                                remaining: earningsAmount,
                             }
                         }
                     );
@@ -448,7 +437,9 @@ async function run() {
                         year,
                         earnings: earningsAmount,
                         expense: 0,
-                        profit: earningsAmount
+                        profit: earningsAmount,
+                        remaining: earningsAmount,
+                        shared: [],
                     });
                 }
 
@@ -673,59 +664,60 @@ async function run() {
         });
 
         // ************************************************************************************************
-        app.post('/addProfitShareData', async (req, res) => {
-            try {
-                const shareData = req.body;
-                const { month, year, sharedProfitBalance } = shareData;
+        // Duplicate route
+        // app.post('/addProfitShareData', async (req, res) => {
+        //     try {
+        //         const shareData = req.body;
+        //         const { month, year, sharedProfitBalance } = shareData;
 
-                const date = new Date().toISOString(); // Ensure date is defined
-                const profitShareData = { ...shareData, date };
+        //         const date = new Date().toISOString(); // Ensure date is defined
+        //         const profitShareData = { ...shareData, date };
 
-                // Check if enough profit is available for the selected month
-                const monthDoc = await monthlyProfitCollections.findOne({ month, year });
+        //         // Check if enough profit is available for the selected month
+        //         const monthDoc = await monthlyProfitCollections.findOne({ month, year });
 
-                if (!monthDoc) {
-                    return res.json({
-                        message: `No profit record found for ${month} ${year}`
-                    });
-                }
+        //         if (!monthDoc) {
+        //             return res.json({
+        //                 message: `No profit record found for ${month} ${year}`
+        //             });
+        //         }
 
-                if (parseFloat(monthDoc.profit) < parseFloat(sharedProfitBalance)) {
-                    return res.json({
-                        message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${sharedProfitBalance}`
-                    });
-                }
+        //         if (parseFloat(monthDoc.profit) < parseFloat(sharedProfitBalance)) {
+        //             return res.json({
+        //                 message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${sharedProfitBalance}`
+        //             });
+        //         }
 
-                // Insert profit share record
-                const result = await profitShareCollections.insertOne(profitShareData);
+        //         // Insert profit share record
+        //         const result = await profitShareCollections.insertOne(profitShareData);
 
-                // Deduct from main balance
-                await mainBalanceCollections.updateOne(
-                    {},
-                    { $inc: { mainBalance: -sharedProfitBalance } }
-                );
+        //         // Deduct from main balance
+        //         await mainBalanceCollections.updateOne(
+        //             {},
+        //             { $inc: { mainBalance: -sharedProfitBalance } }
+        //         );
 
-                // Deduct from selected month's profit
-                await monthlyProfitCollections.updateOne(
-                    { month, year },
-                    { $inc: { profit: -sharedProfitBalance } }
-                );
+        //         // Deduct from selected month's profit
+        //         await monthlyProfitCollections.updateOne(
+        //             { month, year },
+        //             { $inc: { profit: -sharedProfitBalance } }
+        //         );
 
-                // Log to HR transactions
-                await hrTransactionCollections.insertOne({
-                    value: sharedProfitBalance,
-                    note: `Profit share for ${month} ${year}`,
-                    date,
-                    type: 'Share'
-                });
+        //         // Log to HR transactions
+        //         await hrTransactionCollections.insertOne({
+        //             value: sharedProfitBalance,
+        //             note: `Profit share for ${month} ${year}`,
+        //             date,
+        //             type: 'Share'
+        //         });
 
-                res.send(result);
+        //         res.send(result);
 
-            } catch (error) {
-                console.error('Error sharing profit:', error);
-                res.status(500).json({ message: 'Failed to share profit' });
-            }
-        });
+        //     } catch (error) {
+        //         console.error('Error sharing profit:', error);
+        //         res.status(500).json({ message: 'Failed to share profit' });
+        //     }
+        // });
 
         //************************************************************************************************
         app.post('/employee/checkIn', async (req, res) => {
@@ -2067,7 +2059,15 @@ async function run() {
 
                 await monthlyProfitCollections.updateOne(
                     { month, year },
-                    { $inc: { profit: -sharedAmount } }
+                    {
+                        $inc: { remaining: -sharedAmount },
+                        $push: {
+                            shared: {
+                                date,
+                                amount: parseFloat(sharedAmount)
+                            }
+                        }
+                    }
                 );
 
                 res.send({ message: 'Profit shared successfully', insertedCount: result.insertedCount });
@@ -2089,7 +2089,7 @@ async function run() {
 
                 if (parseFloat(monthDoc.profit) < parseFloat(transferAmount)) {
                     return res.json({
-                        message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${sharedAmount}`
+                        message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${transferAmount}`
                     });
                 }
 
@@ -2110,7 +2110,15 @@ async function run() {
 
                 await monthlyProfitCollections.updateOne(
                     { month, year },
-                    { $inc: { profit: -transferAmount } }
+                    {
+                        $inc: { remaining: -transferAmount },
+                        $push: {
+                            shared: {
+                                date,
+                                amount: parseFloat(transferAmount)
+                            }
+                        }
+                    }
                 );
 
                 res.send({ message: 'Profit transfer successfully', insertedId: result.insertedId });
@@ -2120,6 +2128,102 @@ async function run() {
             }
         });
         // ************************************************************************************************
+        // duplicate route
+        // app.get('/calculateMonthlyProfit', async (req, res) => {
+        //     try {
+        //         const allEarnings = await earningsCollections.find().toArray();
+        //         const allExpenses = await expenseCollections.find().toArray();
+
+        //         const profitByMonth = {};
+
+        //         const monthMap = {
+        //             'January': 1, 'February': 2, 'March': 3, 'April': 4,
+        //             'May': 5, 'June': 6, 'July': 7, 'August': 8,
+        //             'September': 9, 'October': 10, 'November': 11, 'December': 12
+        //         };
+
+        //         // Process Earnings using 'month' and fallback 'date' for year
+        //         for (const earn of allEarnings) {
+        //             if (!earn?.month) {
+        //                 console.log("Skipping earning due to missing month:", earn);
+        //                 continue;
+        //             }
+
+        //             const rawMonth = earn.month.toString().trim();
+        //             const capitalizedMonth = rawMonth.charAt(0).toUpperCase() + rawMonth.slice(1).toLowerCase();
+        //             const monthIndex = monthMap[capitalizedMonth];
+
+        //             let year = earn.year?.toString().trim();
+
+        //             if (!year && earn.date && typeof earn.date === 'string') {
+        //                 const parts = earn.date.split('-'); // Expecting DD-MM-YYYY
+        //                 if (parts.length === 3) {
+        //                     year = parts[2];
+        //                 }
+        //             }
+
+        //             if (!monthIndex || !year) {
+        //                 console.log("Skipping earning due to invalid month or year:", earn);
+        //                 continue;
+        //             }
+
+        //             const key = `${monthIndex}-${year}`;
+
+        //             if (!profitByMonth[key]) {
+        //                 profitByMonth[key] = { earnings: 0, expense: 0 };
+        //             }
+
+        //             const value = Number(earn.convertedBdt) || 0;
+        //             profitByMonth[key].earnings += value;
+        //             console.log(`Earning added for ${key}: +${value}`);
+        //         }
+
+        //         // Process Expenses using expenseDate
+        //         for (const exp of allExpenses) {
+        //             if (!exp?.expenseDate) continue;
+        //             const expDate = new Date(exp.expenseDate);
+        //             if (isNaN(expDate.getTime())) continue;
+
+        //             const month = expDate.getMonth() + 1; // JS month is 0-indexed
+        //             const year = expDate.getFullYear();
+        //             const key = `${month}-${year}`;
+
+        //             if (!profitByMonth[key]) {
+        //                 profitByMonth[key] = { earnings: 0, expense: 0 };
+        //             }
+
+        //             profitByMonth[key].expense += Number(exp.expenseAmount) || 0;
+        //         }
+
+        //         const documents = [];
+        //         for (const key in profitByMonth) {
+        //             const [month, year] = key.split('-');
+        //             const monthName = new Date(`${year}-${month}-01`).toLocaleString('default', { month: 'long' });
+        //             const earnings = parseFloat(profitByMonth[key].earnings.toFixed(2));
+        //             const expense = parseFloat(profitByMonth[key].expense.toFixed(2));
+        //             const profit = parseFloat((earnings - expense).toFixed(2));
+
+        //             documents.push({
+        //                 month: monthName,
+        //                 year,
+        //                 earnings,
+        //                 expense,
+        //                 profit
+        //             });
+        //         }
+
+        //         const insertResult = await monthlyProfitCollections.insertMany(documents);
+
+        //         res.send({
+        //             message: 'Monthly profit calculated and stored successfully.',
+        //             insertedCount: insertResult.insertedCount,
+        //             data: documents
+        //         });
+        //     } catch (error) {
+        //         res.status(500).send({ message: 'Error calculating and storing profit', error: error.message });
+        //     }
+        // });
+
         app.get('/calculateMonthlyProfit', async (req, res) => {
             try {
                 const allEarnings = await earningsCollections.find().toArray();
@@ -2133,7 +2237,6 @@ async function run() {
                     'September': 9, 'October': 10, 'November': 11, 'December': 12
                 };
 
-                // Process Earnings using 'month' and fallback 'date' for year
                 for (const earn of allEarnings) {
                     if (!earn?.month) {
                         console.log("Skipping earning due to missing month:", earn);
@@ -2169,13 +2272,12 @@ async function run() {
                     console.log(`Earning added for ${key}: +${value}`);
                 }
 
-                // Process Expenses using expenseDate
                 for (const exp of allExpenses) {
                     if (!exp?.expenseDate) continue;
                     const expDate = new Date(exp.expenseDate);
                     if (isNaN(expDate.getTime())) continue;
 
-                    const month = expDate.getMonth() + 1; // JS month is 0-indexed
+                    const month = expDate.getMonth() + 1;
                     const year = expDate.getFullYear();
                     const key = `${month}-${year}`;
 
@@ -2187,19 +2289,23 @@ async function run() {
                 }
 
                 const documents = [];
+
                 for (const key in profitByMonth) {
                     const [month, year] = key.split('-');
                     const monthName = new Date(`${year}-${month}-01`).toLocaleString('default', { month: 'long' });
                     const earnings = parseFloat(profitByMonth[key].earnings.toFixed(2));
                     const expense = parseFloat(profitByMonth[key].expense.toFixed(2));
                     const profit = parseFloat((earnings - expense).toFixed(2));
+                    const remaining = profit;
 
                     documents.push({
                         month: monthName,
                         year,
                         earnings,
                         expense,
-                        profit
+                        profit,
+                        remaining,
+                        shared: []
                     });
                 }
 
@@ -2214,6 +2320,7 @@ async function run() {
                 res.status(500).send({ message: 'Error calculating and storing profit', error: error.message });
             }
         });
+
         //calculate and store monthly profit
         // ************************************************************************************************
         app.get("/getUnpaidAmount", verifyToken, async (req, res) => {
@@ -2263,6 +2370,25 @@ async function run() {
             }
         });
 
+        // ************************************************************************************************
+        app.get("/getMonthlyProfit", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const monthlyProfit = await monthlyProfitCollections.find().toArray();
+
+
+                res.send(monthlyProfit);
+
+            } catch (error) {
+                res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
+            }
+        });
         // ************************************************************************************************
 
 
