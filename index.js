@@ -201,6 +201,25 @@ async function run() {
 
         // exportAllEmployeesToExcel();
         // *****************************************************************************************
+        //push eid (employee ID) to employee collection
+        // const employeesWithoutEid = await employeeCollections
+        //     .find({ eid: { $exists: false } })
+        //     .sort({ createdAt: 1 }) // or {_id: 1} if createdAt is inconsistent
+        //     .toArray();
+
+        // for (let i = 0; i < employeesWithoutEid.length; i++) {
+        //     const employee = employeesWithoutEid[i];
+        //     const eid = `WB${String(i + 1).padStart(6, '0')}`;
+
+        //     const result = await employeeCollections.updateOne(
+        //         { _id: employee._id },
+        //         { $set: { eid } }
+        //     );
+
+        //     console.log(`Assigned ${eid} to ${employee.fullName} - Update result:`, result.modifiedCount);
+        // }
+
+        // console.log('✅ EID assignment complete.');
         // ******************************************************************************************
         const date = moment(new Date()).format("DD-MMM-YYYY");
 
@@ -1328,6 +1347,55 @@ async function run() {
                 res.status(500).json({ message: "Failed to update order status" });
             }
         });
+        // *****************************************************************************************
+        app.put("/changeEarningStatus/:id", async (req, res) => {
+            try {
+                const id = req.params.id;
+                const { amount, year, month } = req.body;
+
+                console.log("Received ID:", id, "Amount:", amount, "Year:", year, "Month:", month);
+
+                const isID = await earningsCollections.findOne({ _id: new ObjectId(id) });
+
+                if (!isID) {
+                    return res.status(404).json({ message: "Earning data not found." });
+                }
+
+                // Update the earnings status
+                const result = await earningsCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    {
+                        $set: {
+                            status: 'Paid',
+                        }
+                    }
+                );
+
+                // If unpaid record for this month & year exists, decrement its total
+                const isUnpaid = await unpaidCollections.findOne({ month, year });
+
+                if (isUnpaid) {
+                    await unpaidCollections.updateOne(
+                        { month, year },
+                        {
+                            $inc: {
+                                totalConvertedBdt: -parseFloat(amount)
+                            },
+                            $set: {
+                                status: "Paid"
+                            }
+                        }
+                    );
+
+                }
+
+                res.send(result);
+            } catch (error) {
+                console.error("❌ Error updating earning status:", error);
+                res.status(500).json({ message: "Failed to update earning status" });
+            }
+        });
+
         // *****************************************************************************************
 
 
