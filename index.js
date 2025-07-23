@@ -20,6 +20,95 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 const PORT = process.env.PORT || 5000;
 
+// ******bot header**************************************
+const TelegramBot = require('node-telegram-bot-api');
+const fetchOtpFromIPRN = require('./fetchOtpFromIPRN');
+
+const bot = new TelegramBot(process.env.TG_TOKEN, { polling: true });
+
+const activeUsers = {}; // track who started the bot
+
+// Multiple tokens
+const bearerTokens = [
+    process.env.TULI_TOKEN,
+
+];
+// *****Bot block*********************************************************************************
+// /start command
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+
+    // Fallback to first name if no username
+    const fullName = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ');
+
+    activeUsers[userId] = true;
+
+    bot.sendMessage(chatId, `👋 Hi ${fullName}, Welcome to *GS OTP Bot*! 🎉\n\nYou can now send phone numbers directly to fetch OTPs.\n\nUse /about to learn more.`, {
+        parse_mode: "Markdown",
+    });
+});
+
+
+// /cancel command
+bot.onText(/\/cancel/, (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+
+    delete activeUsers[userId];
+    bot.sendMessage(chatId, `❌ Bot deactivated. Use /start to reactivate.`);
+});
+
+// ✅ /about command
+bot.onText(/\/about/, (msg) => {
+    const chatId = msg.chat.id;
+
+    bot.sendMessage(chatId, `ℹ️ *About GS OTP Bot*
+
+This bot fetches OTP for G Sarwar's team only.
+
+- ✅ Fetches latest OTP
+- ✅ Returns only the numeric OTP (easy copy)
+
+Made by Sarwar
+
+Use /start to begin anytime.`,
+        { parse_mode: "Markdown" });
+});
+
+
+// Handle phone number input
+bot.onText(/^\+?\d+$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+
+    if (!activeUsers[userId]) {
+        return bot.sendMessage(chatId, "⚠️ Please use /start before sending a number.");
+    }
+
+    const phoneNumber = match[0];
+    bot.sendMessage(chatId, `🔍 Looking for OTP for ${phoneNumber}`);
+
+    for (const token of bearerTokens) {
+        try {
+            const messageText = await fetchOtpFromIPRN(phoneNumber, token);
+
+            const otp = await fetchOtpFromIPRN(phoneNumber, token);
+
+            if (otp) {
+                return bot.sendMessage(chatId, otp); // OTP is already 5-digit string
+            }
+
+        } catch (error) {
+            console.log(`❌ Token failed:`, error.response?.status || error.message);
+        }
+    }
+
+    bot.sendMessage(chatId, `📭 No OTP found for ${phoneNumber}`);
+});
+
+// **********************************************************************************************************
+
 // Middleware
 app.use(cors(
     {
