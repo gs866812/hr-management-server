@@ -760,16 +760,16 @@ async function run() {
                 const now = moment().tz("Asia/Dhaka"); // BD time
                 const initialMorningShift = now.clone().startOf('day').add(5, 'hours').add(45, 'minutes').valueOf();
                 const morningShiftStart = now.clone().startOf('day').add(6, 'hours').add(0, 'minutes').valueOf();
-                const morningShiftLateCount = now.clone().startOf('day').add(6, 'hours').add(30, 'minutes').valueOf();
+                const morningShiftLateCount = now.clone().startOf('day').add(12, 'hours').add(0, 'minutes').valueOf();
 
                 const initialGeneralShift = now.clone().startOf('day').add(9, 'hours').add(45, 'minutes').valueOf();
                 const generalShiftStart = now.clone().startOf('day').add(10, 'hours').add(0, 'minutes').valueOf();
-                const generalShiftLateCount = now.clone().startOf('day').add(10, 'hours').add(30, 'minutes').valueOf();
+                const generalShiftLateCount = now.clone().startOf('day').add(12, 'hours').add(0, 'minutes').valueOf();
 
                 const InitialEveningShift = now.clone().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf();
                 const eveningShiftStart = now.clone().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
                 const eveningShiftStartForLateCount = now.clone().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
-                const eveningShiftLateCount = now.clone().startOf('day').add(17, 'hours').add(30, 'minutes').valueOf();
+                const eveningShiftLateCount = now.clone().startOf('day').add(16, 'hours').add(30, 'minutes').valueOf();
 
 
 
@@ -845,6 +845,14 @@ async function run() {
                     }
                 } else {
                     return res.json({ message: 'You are not eligible to check in at this time' });
+                }
+
+                const result = await checkInCollections.insertOne(checkInInfo);
+
+                if (result.insertedId) {
+                    res.status(200).json({ message: 'Check-in successful' });
+                } else {
+                    res.json({ message: 'Check-in failed' });
                 }
 
             } catch (error) {
