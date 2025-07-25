@@ -145,6 +145,8 @@ async function run() {
         const PFAndSalaryCollections = database.collection("PFAndSalaryList");
         const monthlyProfitCollections = database.collection("monthlyProfitList");
         const unpaidCollections = database.collection("unpaidList");
+        const adminNotificationCollections = database.collection("adminNotificationList");
+        const appliedLeaveCollections = database.collection("appliedLeaveList");
 
         // ******************store unpaid once********************************************************
         // const unpaidEntries = await earningsCollections.find({ status: { $ne: 'Paid' } }).toArray();
@@ -1055,6 +1057,35 @@ async function run() {
                 res.status(500).json({ message: 'Failed to stop OT', error: error.message });
             }
         });
+        // ************************************************************************************************
+        app.post("/appliedLeave", async (req, res) => {
+            const leaveData = req.body;
+
+            try {
+                const leaveData = req.body;
+                const { email } = leaveData;
+
+                // Check if the user already has a pending leave request
+                const existingLeave = await appliedLeaveCollections.findOne({ email, status: "Pending" });
+
+                if (existingLeave) {
+                    return res.json({ message: 'You already have a pending leave request' });
+                }
+
+                // Insert the new leave request
+                const result = await appliedLeaveCollections.insertOne(leaveData);
+                await adminNotificationCollections.insertOne({ notification: `New leave request from ${leaveData.employeeName}`, email: email });
+
+                if (result.insertedId) {
+                    res.json({ message: 'success' });
+                } else {
+                    res.json({ message: 'Failed to submit leave request' });
+                }
+            } catch (error) {
+                res.json({ message: 'Failed to submit leave request', error: error.message });
+            }
+        });
+        // ************************************************************************************************
         // ************************************************************************************************
 
 
@@ -2461,6 +2492,25 @@ async function run() {
 
 
                 res.send(monthlyProfit);
+
+            } catch (error) {
+                res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getAdminNotification", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const notification = await adminNotificationCollections.find().toArray();
+
+
+                res.send(notification);
 
             } catch (error) {
                 res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
