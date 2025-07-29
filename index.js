@@ -1074,7 +1074,11 @@ async function run() {
 
                 // Insert the new leave request
                 const result = await appliedLeaveCollections.insertOne(leaveData);
-                await adminNotificationCollections.insertOne({ notification: `New leave request from ${leaveData.employeeName}`, email: email });
+                await adminNotificationCollections.insertOne({
+                    notification: `New leave request received`,
+                    email: email,
+                    link: "/payroll/leaveApplication"
+                });
 
                 if (result.insertedId) {
                     res.json({ message: 'success' });
