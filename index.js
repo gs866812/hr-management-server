@@ -1077,7 +1077,7 @@ async function run() {
                 await adminNotificationCollections.insertOne({
                     notification: `New leave request received`,
                     email: email,
-                    link: "/payroll/leaveApplication"
+                    link: "/payroll"
                 });
 
                 if (result.insertedId) {
