@@ -1441,6 +1441,27 @@ async function run() {
         });
 
         // *****************************************************************************************
+        app.put("/markAsRead/:id", async (req, res) => {
+            const id = req.params.id;
+            try {
+                const isID = await adminNotificationCollections.findOne({ _id: new ObjectId(id) });
+
+                if (!isID) {
+                    return res.status(404).json({ message: "Notification not found" });
+                }
+
+                const result = await adminNotificationCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { isRead: true } }
+                );
+
+                res.send(result);
+            } catch (error) {
+                console.error("❌ Error marking notification as read:", error);
+                res.status(500).json({ message: "Failed to mark notification as read" });
+            }
+        });
+        // *****************************************************************************************
 
 
 
@@ -2511,10 +2532,29 @@ async function run() {
                     return res.status(401).send({ message: "Forbidden Access" });
                 }
 
-                const notification = await adminNotificationCollections.find().toArray();
+                const notification = await adminNotificationCollections.find().sort({ _id: -1 }).toArray();
 
 
                 res.send(notification);
+
+            } catch (error) {
+                res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getAppliedLeave", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const appliedLeave = await appliedLeaveCollections.find().sort({ _id: -1 }).toArray();
+
+
+                res.send(appliedLeave);
 
             } catch (error) {
                 res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
