@@ -146,7 +146,9 @@ async function run() {
         const monthlyProfitCollections = database.collection("monthlyProfitList");
         const unpaidCollections = database.collection("unpaidList");
         const adminNotificationCollections = database.collection("adminNotificationList");
+        const employeeNotificationCollections = database.collection("employeeNotificationList");
         const appliedLeaveCollections = database.collection("appliedLeaveList");
+        const leaveBalanceCollections = database.collection("leaveBalanceList");
 
         // ******************store unpaid once********************************************************
         // const unpaidEntries = await earningsCollections.find({ status: { $ne: 'Paid' } }).toArray();
@@ -178,10 +180,11 @@ async function run() {
 
 
         // *******************************************************************************************
-        // async function exportAllEmployeesToExcel() {
+        //insert from another collection
+        // async function initializeLeaveBalance() {
         //     try {
         //         const employees = await employeeCollections
-        //             .find({}, { projection: { _id: 0, email: 1, fullName: 1 } })
+        //             .find({}, { projection: { _id: 0, email: 1, fullName: 1, eid: 1 } })
         //             .toArray();
 
         //         if (!employees.length) {
@@ -189,40 +192,25 @@ async function run() {
         //             return;
         //         }
 
-        //         const worksheet = XLSX.utils.json_to_sheet(employees);
-        //         const workbook = XLSX.utils.book_new();
-        //         XLSX.utils.book_append_sheet(workbook, worksheet, "Employees");
+        //         const leaveData = employees.map(emp => ({
+        //             fullName: emp.fullName,
+        //             email: emp.email,
+        //             eid: emp.eid,
+        //             casualLeave: 0,
+        //             sickLeave: 0
+        //         }));
 
-        //         const filePath = path.join(__dirname, "employee_list.xlsx");
-        //         XLSX.writeFile(workbook, filePath);
+        //         const result = await leaveBalanceCollections.insertMany(leaveData);
 
-        //         console.log("✅ Excel file saved successfully:", filePath);
+        //         console.log(`✅ Inserted ${result.insertedCount} leave balance records.`);
         //     } catch (error) {
-        //         console.error("❌ Failed to generate Excel:", error);
+        //         console.error("❌ Failed to initialize leave balances:", error);
         //     }
-        // };
-
-        // exportAllEmployeesToExcel();
-        // *****************************************************************************************
-        //push eid (employee ID) to employee collection
-        // const employeesWithoutEid = await employeeCollections
-        //     .find({ eid: { $exists: false } })
-        //     .sort({ createdAt: 1 }) // or {_id: 1} if createdAt is inconsistent
-        //     .toArray();
-
-        // for (let i = 0; i < employeesWithoutEid.length; i++) {
-        //     const employee = employeesWithoutEid[i];
-        //     const eid = `WB${String(i + 1).padStart(6, '0')}`;
-
-        //     const result = await employeeCollections.updateOne(
-        //         { _id: employee._id },
-        //         { $set: { eid } }
-        //     );
-
-        //     console.log(`Assigned ${eid} to ${employee.fullName} - Update result:`, result.modifiedCount);
         // }
 
-        // console.log('✅ EID assignment complete.');
+
+        // initializeLeaveBalance();
+
         // ******************************************************************************************
         const date = moment(new Date()).format("DD-MMM-YYYY");
 
@@ -530,73 +518,7 @@ async function run() {
         });
 
         // ************************************************************************************************
-        // app.post('/assign-shift', async (req, res) => {
-        //     try {
-        //         const { employees, shift } = req.body;
-        //         console.log(employees.fullName);
 
-        //         let entryTime;
-        //         if (shift === "Morning") {
-        //             entryTime = "06:00 AM";
-        //         } else if (shift === "Evening") {
-        //             entryTime = "02:00 PM";
-        //         } else if (shift === "Night") {
-        //             entryTime = "10:00 PM";
-        //         } else if (shift === "General") {
-        //             entryTime = "10:00 AM";
-        //         }
-
-
-        //         if (!employees?.length || !shift) {
-        //             return res.status(400).send({ message: 'Invalid input data' });
-        //         }
-
-        //         const inserted = [];
-        //         const updated = [];
-        //         const skipped = [];
-
-        //         for (const emp of employees) {
-        //             const existing = await shiftingCollections.findOne({ email: emp.email });
-
-        //             if (!existing) {
-        //                 await shiftingCollections.insertOne({
-        //                     fullName: emp.fullName,
-        //                     email: emp.email,
-        //                     shiftName: shift,
-        //                     entryTime,
-        //                 });
-        //                 inserted.push(emp);
-        //             } else if (existing.shiftName !== shift) {
-        //                 await shiftingCollections.updateOne(
-        //                     { email: emp.email },
-        //                     {
-        //                         $set: {
-        //                             shiftName: shift,
-        //                             entryTime,
-        //                         }
-        //                     }
-        //                 );
-        //                 updated.push(emp);
-        //             } else {
-        //                 skipped.push(emp);
-        //             }
-        //         }
-
-        //         res.status(200).json({
-        //             message: 'Shift assignment processed',
-        //             insertedCount: inserted.length,
-        //             updatedCount: updated.length,
-        //             skippedCount: skipped.length,
-        //             insertedNames: Array.isArray(inserted) ? inserted.map(e => e.fullName) : [],
-        //             updatedNames: Array.isArray(updated) ? updated.map(e => e.fullName) : [],
-        //             skippedNames: Array.isArray(skipped) ? skipped.map(e => e.fullName) : [],
-        //         });
-
-        //     } catch (error) {
-        //         console.error('Error assigning shift:', error);
-        //         res.status(500).json({ message: 'Failed to assign shift' });
-        //     }
-        // });
         app.post('/assign-shift', async (req, res) => {
             try {
                 const { employees, shift, OTFor } = req.body;
@@ -685,67 +607,16 @@ async function run() {
             }
         });
 
-        // ************************************************************************************************
-        // Duplicate route
-        // app.post('/addProfitShareData', async (req, res) => {
-        //     try {
-        //         const shareData = req.body;
-        //         const { month, year, sharedProfitBalance } = shareData;
-
-        //         const date = new Date().toISOString(); // Ensure date is defined
-        //         const profitShareData = { ...shareData, date };
-
-        //         // Check if enough profit is available for the selected month
-        //         const monthDoc = await monthlyProfitCollections.findOne({ month, year });
-
-        //         if (!monthDoc) {
-        //             return res.json({
-        //                 message: `No profit record found for ${month} ${year}`
-        //             });
-        //         }
-
-        //         if (parseFloat(monthDoc.profit) < parseFloat(sharedProfitBalance)) {
-        //             return res.json({
-        //                 message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${sharedProfitBalance}`
-        //             });
-        //         }
-
-        //         // Insert profit share record
-        //         const result = await profitShareCollections.insertOne(profitShareData);
-
-        //         // Deduct from main balance
-        //         await mainBalanceCollections.updateOne(
-        //             {},
-        //             { $inc: { mainBalance: -sharedProfitBalance } }
-        //         );
-
-        //         // Deduct from selected month's profit
-        //         await monthlyProfitCollections.updateOne(
-        //             { month, year },
-        //             { $inc: { profit: -sharedProfitBalance } }
-        //         );
-
-        //         // Log to HR transactions
-        //         await hrTransactionCollections.insertOne({
-        //             value: sharedProfitBalance,
-        //             note: `Profit share for ${month} ${year}`,
-        //             date,
-        //             type: 'Share'
-        //         });
-
-        //         res.send(result);
-
-        //     } catch (error) {
-        //         console.error('Error sharing profit:', error);
-        //         res.status(500).json({ message: 'Failed to share profit' });
-        //     }
-        // });
-
         //************************************************************************************************
         app.post('/employee/checkIn', async (req, res) => {
             const checkInInfo = req.body;
 
             try {
+                // Check if the user is on leave
+                const isOnLeave = await employeeCollections.findOne({ email: checkInInfo.email, status: "On Leave" });
+                if (isOnLeave) {
+                    return res.json({ message: 'You are currently on leave' });
+                }
 
                 // Check if the user already checked in today
                 const existingCheckIn = await checkInCollections.findOne({
@@ -767,12 +638,12 @@ async function run() {
 
                 const initialGeneralShift = now.clone().startOf('day').add(9, 'hours').add(45, 'minutes').valueOf();
                 const generalShiftStart = now.clone().startOf('day').add(10, 'hours').add(0, 'minutes').valueOf();
-                const generalShiftLateCount = now.clone().startOf('day').add(12, 'hours').add(0, 'minutes').valueOf();
+                const generalShiftLateCount = now.clone().startOf('day').add(16, 'hours').add(0, 'minutes').valueOf();
 
                 const InitialEveningShift = now.clone().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf();
                 const eveningShiftStart = now.clone().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
                 const eveningShiftStartForLateCount = now.clone().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
-                const eveningShiftLateCount = now.clone().startOf('day').add(16, 'hours').add(30, 'minutes').valueOf();
+                const eveningShiftLateCount = now.clone().startOf('day').add(18, 'hours').add(30, 'minutes').valueOf();
 
 
 
@@ -1059,11 +930,16 @@ async function run() {
         });
         // ************************************************************************************************
         app.post("/appliedLeave", async (req, res) => {
-            const leaveData = req.body;
 
             try {
                 const leaveData = req.body;
-                const { email } = leaveData;
+                const { email, totalDays } = leaveData;
+                // check if the user has remaining leave balance
+                const leaveBalance = await leaveBalanceCollections.findOne({ email });
+                if (leaveBalance.casualLeave < totalDays) {
+                    return res.json({ message: 'You have no remaining leave balance' });
+                }
+
 
                 // Check if the user already has a pending leave request
                 const existingLeave = await appliedLeaveCollections.findOne({ email, status: "Pending" });
@@ -1457,8 +1333,70 @@ async function run() {
 
                 res.send(result);
             } catch (error) {
-                console.error("❌ Error marking notification as read:", error);
                 res.status(500).json({ message: "Failed to mark notification as read" });
+            }
+        });
+        // *****************************************************************************************
+        app.put("/employeeNotificationMarkAsRead/:id", async (req, res) => {
+            const id = req.params.id;
+            try {
+                const isID = await employeeNotificationCollections.findOne({ _id: new ObjectId(id) });
+
+                if (!isID) {
+                    return res.status(404).json({ message: "Notification not found" });
+                }
+
+                const result = await employeeNotificationCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { isRead: true } }
+                );
+
+                res.send(result);
+            } catch (error) {
+                res.status(500).json({ message: "Failed to mark notification as read" });
+            }
+        });
+        // *****************************************************************************************
+        app.put("/acceptLeave/:id", async (req, res) => {
+            const id = req.params.id;
+            try {
+                const isID = await appliedLeaveCollections.findOne({ _id: new ObjectId(id) });
+                const email = isID.email;
+                const totalDays = isID.totalDays;
+
+                if (!isID) {
+                    return res.json({ message: "Application not found" });
+                };
+
+                // Reduce leave balance
+                await leaveBalanceCollections.updateOne(
+                    { email: email },
+                    { $inc: { casualLeave: -totalDays } }  // Decrease casual leave balance by totalDays
+                );
+
+
+                const result = await appliedLeaveCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { status: 'Approved' } }
+                );
+                await employeeNotificationCollections.insertOne({
+                    notification: `Leave request approved`,
+                    email: email,
+                    link: "/leave",
+                    isRead: false
+                });
+                // Update employee status
+                await employeeCollections.updateOne(
+                    { email: email },
+                    {
+                        $set: { status: 'On Leave' }  // Update employee status to 'On Leave'
+                    }
+
+                );
+
+                res.send(result);
+            } catch (error) {
+                res.json({ message: "Failed to mark notification as read" });
             }
         });
         // *****************************************************************************************
@@ -2555,6 +2493,25 @@ async function run() {
 
 
                 res.send(appliedLeave);
+
+            } catch (error) {
+                res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
+            }
+        });
+        // ************************************************************************************************
+        app.get("/getEmployeeNotification", verifyToken, async (req, res) => {
+            try {
+                const userMail = req.query.userEmail;
+                const email = req.user.email;
+
+                if (userMail !== email) {
+                    return res.status(401).send({ message: "Forbidden Access" });
+                }
+
+                const notification = await employeeNotificationCollections.find({email: userMail}).sort({ _id: -1 }).toArray();
+
+
+                res.send(notification);
 
             } catch (error) {
                 res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
