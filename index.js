@@ -613,10 +613,12 @@ async function run() {
 
             try {
                 // Check if the user is on leave
-                const isOnLeave = await employeeCollections.findOne({ email: checkInInfo.email, status: "On Leave" });
-                if (isOnLeave) {
-                    return res.json({ message: 'You are currently on leave' });
-                }
+                const today = checkInInfo.date; // Assuming date is part of checkInInfo
+                
+                // const isOnLeave = await employeeCollections.findOne({ email: checkInInfo.email, status: "On Leave" });
+                // if (isOnLeave) {
+                //     return res.json({ message: 'You are on leave' });
+                // }
 
                 // Check if the user already checked in today
                 const existingCheckIn = await checkInCollections.findOne({
