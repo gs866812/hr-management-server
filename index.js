@@ -614,7 +614,7 @@ async function run() {
             try {
                 // Check if the user is on leave
                 const today = checkInInfo.date; // Assuming date is part of checkInInfo
-                
+
                 // const isOnLeave = await employeeCollections.findOne({ email: checkInInfo.email, status: "On Leave" });
                 // if (isOnLeave) {
                 //     return res.json({ message: 'You are on leave' });
@@ -1401,6 +1401,52 @@ async function run() {
                 res.json({ message: "Failed to mark notification as read" });
             }
         });
+        // *****************************************************************************************
+        // PUT /declineLeave/:id
+        app.put('/declineLeave/:id', async (req, res) => {
+            try {
+                const { id } = req.params;
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ message: 'Invalid leave ID' });
+                }
+
+                // 1) Read the leave doc to get the email (and verify it exists)
+                const leaveDoc = await appliedLeaveCollections.findOne(
+                    { _id: new ObjectId(id) },
+                    { projection: { email: 1, status: 1 } }
+                );
+                if (!leaveDoc) {
+                    return res.status(404).json({ message: 'Leave application not found' });
+                }
+
+                // Optional: if already not Pending, you can short-circuit
+                // if (leaveDoc.status !== 'Pending') {
+                //   return res.json({ message: `Already ${leaveDoc.status}`, modifiedCount: 0 });
+                // }
+
+                // 2) Update status to Declined
+                const update = await appliedLeaveCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { status: 'Declined' } }
+                );
+
+                // 3) Insert employee notification using the email from the doc
+                if (update.modifiedCount > 0 && leaveDoc.email) {
+                    await employeeNotificationCollections.insertOne({
+                        notification: 'Leave request declined',
+                        email: leaveDoc.email,
+                        link: '/leave',
+                        isRead: false,
+                    });
+                }
+
+                res.send(update); // { matchedCount, modifiedCount, ... }
+            } catch (err) {
+                res.status(500).json({ message: 'Failed to decline leave', error: err?.message });
+            }
+        });
+
+
         // *****************************************************************************************
 
 
@@ -2444,25 +2490,7 @@ async function run() {
         });
 
         // ************************************************************************************************
-        app.get("/getMonthlyProfit", verifyToken, async (req, res) => {
-            try {
-                const userMail = req.query.userEmail;
-                const email = req.user.email;
 
-                if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
-                }
-
-                const monthlyProfit = await monthlyProfitCollections.find().toArray();
-
-
-                res.send(monthlyProfit);
-
-            } catch (error) {
-                res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
-            }
-        });
-        // ************************************************************************************************
         app.get("/getAdminNotification", verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
@@ -2510,7 +2538,7 @@ async function run() {
                     return res.status(401).send({ message: "Forbidden Access" });
                 }
 
-                const notification = await employeeNotificationCollections.find({email: userMail}).sort({ _id: -1 }).toArray();
+                const notification = await employeeNotificationCollections.find({ email: userMail }).sort({ _id: -1 }).toArray();
 
 
                 res.send(notification);
