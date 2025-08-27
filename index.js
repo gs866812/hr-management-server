@@ -355,22 +355,22 @@ async function run() {
                 if (id) {
                     await clientCollections.updateOne(
                         { clientID: id },
-                        {
-                            $push: {
-                                orderHistory: orderData,
-                            },
-                        }
+                        { $push: { orderHistory: orderData } }
                     );
                 }
 
-                const addOrder = await localOrderCollections.insertOne(orderData);
+                // 👉 ensure isLocked is present and false by default
+                const addOrder = await localOrderCollections.insertOne({
+                    ...orderData,
+                    isLocked: orderData.isLocked ?? false,
+                });
 
                 res.send(addOrder);
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to add expense', error: error.message }); // Include error message in response
+                res.status(500).json({ message: 'Failed to add expense', error: error.message });
             }
         });
+
         // ************************************************************************************************
         app.post('/registerEmployees', async (req, res) => {
             try {
@@ -987,6 +987,10 @@ async function run() {
                     return res.status(404).json({ message: "Order not found" });
                 }
 
+                if (isID.isLocked) {
+                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
+                }
+
                 // Update the order status to "In-progress"
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
@@ -1004,18 +1008,16 @@ async function run() {
                 const id = req.params.orderId;
 
                 const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
-
                 if (!isID) {
                     return res.status(404).json({ message: "Order not found" });
+                }
+                if (isID.isLocked) {
+                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
                 }
 
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
-                    {
-                        $set: {
-                            orderStatus: "Delivered",
-                        }
-                    }
+                    { $set: { orderStatus: "Delivered" } }
                 );
 
                 res.send(result);
@@ -1023,24 +1025,23 @@ async function run() {
                 res.status(500).json({ message: "Failed to update order status" });
             }
         });
+
         // *****************************************************************************************
         app.put("/modifyOrderToInitial/:orderId", async (req, res) => {
             try {
                 const id = req.params.orderId;
 
                 const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
-
                 if (!isID) {
                     return res.status(404).json({ message: "Order not found" });
+                }
+                if (isID.isLocked) {
+                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
                 }
 
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
-                    {
-                        $set: {
-                            orderStatus: "Reviewing",
-                        }
-                    }
+                    { $set: { orderStatus: "Reviewing" } }
                 );
 
                 res.send(result);
@@ -1048,24 +1049,23 @@ async function run() {
                 res.status(500).json({ message: "Failed to update order status" });
             }
         });
+
         // *****************************************************************************************
         app.put("/orderStatusQC/:orderId", async (req, res) => {
             try {
                 const id = req.params.orderId;
 
                 const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
-
                 if (!isID) {
                     return res.status(404).json({ message: "Order not found" });
+                }
+                if (isID.isLocked) {
+                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
                 }
 
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
-                    {
-                        $set: {
-                            orderStatus: "Ready to QC",
-                        }
-                    }
+                    { $set: { orderStatus: "Ready to QC" } }
                 );
 
                 res.send(result);
@@ -1073,16 +1073,19 @@ async function run() {
                 res.status(500).json({ message: "Failed to update order status" });
             }
         });
+
         // *****************************************************************************************
         app.put("/orderStatusHold/:orderId", async (req, res) => {
             try {
                 const id = req.params.orderId;
-                const { completeTime, lastUpdated } = req.body; // Time when hold was triggered
+                const { completeTime, lastUpdated } = req.body;
 
                 const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
-
                 if (!isID) {
                     return res.status(404).json({ message: "Order not found" });
+                }
+                if (isID.isLocked) {
+                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
                 }
 
                 const result = await localOrderCollections.updateOne(
@@ -1101,6 +1104,7 @@ async function run() {
                 res.status(500).json({ message: "Failed to update order status" });
             }
         });
+
         // *****************************************************************************************
 
         app.put("/editExpense/:id", async (req, res) => {
@@ -1248,20 +1252,24 @@ async function run() {
         app.put("/extendDeadline/:orderId", async (req, res) => {
             try {
                 const id = req.params.orderId;
-                const { newDeadline } = req.body; // Assuming new deadline is passed in the request body
+                const { newDeadline } = req.body;
 
-
-                // Check if the order exists
                 const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
-
                 if (!isID) {
                     return res.status(404).json({ message: "Order not found" });
                 }
 
-                // Update the order status to "In-progress"
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
-                    { $set: { orderDeadLine: newDeadline } }
+                    {
+                        $set: {
+                            orderDeadLine: newDeadline,
+                            orderStatus: "Pending",
+                            isLocked: false,
+                            completeTime: 0,
+                            lastUpdated: 0
+                        }
+                    }
                 );
 
                 res.send(result);
@@ -1269,6 +1277,7 @@ async function run() {
                 res.status(500).json({ message: "Failed to update order status" });
             }
         });
+
         // *****************************************************************************************
         app.put("/changeEarningStatus/:id", async (req, res) => {
             try {
@@ -1446,6 +1455,57 @@ async function run() {
             }
         });
 
+
+        // *****************************************************************************************
+        // Mark order as Completed and lock it
+        app.put("/orderStatusComplete/:orderId", async (req, res) => {
+            try {
+                const id = req.params.orderId;
+                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+
+                if (!isID) {
+                    return res.status(404).json({ message: "Order not found" });
+                }
+                if (isID.isLocked) {
+                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
+                }
+
+                const result = await localOrderCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { orderStatus: "Completed", isLocked: true } }
+                );
+
+                res.send(result);
+            } catch (error) {
+                res.status(500).json({ message: "Failed to update order status" });
+            }
+        });
+
+
+        // *****************************************************************************************
+        // Set status to "Ready to Upload"
+        app.put("/orderStatusReadyToUpload/:orderId", async (req, res) => {
+            try {
+                const id = req.params.orderId;
+
+                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                if (!isID) {
+                    return res.status(404).json({ message: "Order not found" });
+                }
+                if (isID.isLocked) {
+                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
+                }
+
+                const result = await localOrderCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { orderStatus: "Ready to Upload" } }
+                );
+
+                res.send(result);
+            } catch (error) {
+                res.status(500).json({ message: "Failed to update order status" });
+            }
+        });
 
         // *****************************************************************************************
 
