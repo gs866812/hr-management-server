@@ -2608,6 +2608,54 @@ async function run() {
             }
         });
         // ************************************************************************************************
+        // --- Admin Attendance across employees ---
+        app.get("/admin/attendance/list", verifyToken, async (req, res) => {
+            try {
+                const { userEmail, start, end, employeeEmail, q } = req.query;
+                if (userEmail !== req.user.email) return res.status(401).json({ message: "Forbidden Access" });
+
+                const startMs = new Date(start + "T00:00:00Z").getTime();
+                const endMs = new Date(end + "T23:59:59Z").getTime();
+
+                // attendanceList already stores merged check-in/out + OT (from your checkout/OT flows)
+                const match = {
+                    // we saved "date" as 'DD-MMM-YYYY' string; keep both guards:
+                    $and: [
+                        {
+                            $expr: {
+                                $and: [
+                                    { $gte: ["$checkInTime", startMs] },
+                                    { $lte: ["$checkInTime", endMs] }
+                                ]
+                            }
+                        },
+                    ]
+                };
+
+                if (employeeEmail) match.email = employeeEmail;
+
+                const base = await attendanceCollections
+                    .find(match)
+                    .project({
+                        email: 1, fullName: 1, date: 1, month: 1,
+                        checkInTime: 1, checkOutTime: 1,
+                        workingHourInSeconds: 1,
+                        lateCheckIn: 1,
+                        totalOTInSeconds: 1,
+                    })
+                    .sort({ checkInTime: 1 })
+                    .toArray();
+
+                const filtered = q
+                    ? base.filter(r => (r.fullName || "").toLowerCase().includes(q.toLowerCase()) || (r.email || "").toLowerCase().includes(q.toLowerCase()))
+                    : base;
+
+                res.send(filtered);
+            } catch (e) {
+                res.status(500).json({ message: "Failed to load attendance", error: e?.message });
+            }
+        });
+        // ************************************************************************************************
 
 
 
@@ -2636,6 +2684,67 @@ async function run() {
                 res.send({ message: 'Image uploaded successfully', url: imageUrl });
             } catch (error) {
                 res.status(500).send({ error: 'Image upload failed' });
+            }
+        });
+        // ************************************************************************************************
+        // --- OT aggregation buckets ---
+        app.get("/admin/ot/list", verifyToken, async (req, res) => {
+            try {
+                const { userEmail, start, end, employeeEmail, groupBy = "daily" } = req.query;
+                if (userEmail !== req.user.email) return res.status(401).json({ message: "Forbidden Access" });
+
+                const startMs = new Date(start + "T00:00:00Z").getTime();
+                const endMs = new Date(end + "T23:59:59Z").getTime();
+
+                const match = {
+                    $and: [
+                        {
+                            $expr: {
+                                $and: [
+                                    { $gte: ["$checkInTime", startMs] },
+                                    { $lte: ["$checkInTime", endMs] },
+                                ]
+                            }
+                        }
+                    ],
+                    totalOTInSeconds: { $gt: 0 }
+                };
+                if (employeeEmail) match.email = employeeEmail;
+
+                const all = await attendanceCollections.find(match).toArray();
+
+                const fmt = (ts) => {
+                    const d = new Date(ts);
+                    if (groupBy === "yearly") return `${d.getUTCFullYear()}`;
+                    if (groupBy === "monthly") return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+                    if (groupBy === "weekly") {
+                        const onejan = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+                        const week = Math.ceil((((d - onejan) / 86400000) + onejan.getUTCDay() + 1) / 7);
+                        return `${d.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+                    }
+                    // daily
+                    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+                };
+
+                const map = new Map();
+                for (const r of all) {
+                    const bucket = fmt(r.checkInTime || r.otStartTime || Date.now());
+                    const key = `${bucket}|${r.email}`;
+                    const prev = map.get(key) || { bucket, email: r.email, fullName: r.fullName, totalOTInSeconds: 0 };
+                    prev.totalOTInSeconds += r.totalOTInSeconds || 0;
+                    map.set(key, prev);
+                }
+
+                const out = Array.from(map.values()).map(v => ({
+                    bucketLabel: v.bucket,
+                    email: v.email,
+                    fullName: v.fullName,
+                    totalOTInSeconds: v.totalOTInSeconds
+                }));
+
+                res.send(out);
+            } catch (e) {
+                res.status(500).json({ message: "Failed to load OT", error: e?.message });
             }
         });
         // ************************************************************************************************
