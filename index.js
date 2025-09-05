@@ -212,6 +212,19 @@ async function run() {
         // initializeLeaveBalance();
 
         // ******************************************************************************************
+        // Helper function to determine role based on designation
+        function roleForDesignation(designation) {
+            const t = (designation || "").toString().trim().toLowerCase();
+            // Explicit mappings (case/spacing tolerant)
+            if (t === "admin") return "Admin";
+            if (t === "hr-admin" || t === "hr admin" || t === "hr") return "HR-ADMIN";
+            if (t === "team leader" || t === "team-leader" || t === "tl") return "teamLeader";
+            if (t === "developer" || t.includes("developer")) return "developer";
+            // Everyone else is a normal employee
+            return "employee";
+        }
+
+        // ******************************************************************************************
         const date = moment(new Date()).format("DD-MMM-YYYY");
 
         // *******************************************************************************************
@@ -2755,6 +2768,74 @@ async function run() {
                 res.send(result);
             } catch (err) {
                 res.status(500).json({ message: "Error adding shareholder" });
+            }
+        });
+
+        // ************************************************************************************************
+        app.get("/admin/designations", verifyToken, async (req, res) => {
+            try {
+                const requestedEmail = req.query.userEmail;
+                const tokenEmail = req.user.email;
+                if (requestedEmail !== tokenEmail) {
+                    return res.status(403).send({ message: "Forbidden Access" });
+                }
+
+                const list = await employeeCollections.distinct("designation");
+                const cleaned = (list || []).filter(Boolean).map(String).sort((a, b) => a.localeCompare(b));
+                res.send(cleaned);
+            } catch (error) {
+                res.status(500).json({ message: "Failed to fetch designations" });
+            }
+        });
+
+        // ************************************************************************************************
+        app.put("/admin/employee/:id/designation", verifyToken, async (req, res) => {
+            try {
+                const requestedEmail = req.query.userEmail;
+                const tokenEmail = req.user.email;
+                if (requestedEmail !== tokenEmail) {
+                    return res.status(403).send({ message: "Forbidden Access" });
+                }
+
+                const { id } = req.params;
+                const { newDesignation } = req.body;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ message: "Invalid employee id" });
+                }
+                if (!newDesignation || typeof newDesignation !== "string") {
+                    return res.status(400).json({ message: "newDesignation is required" });
+                }
+
+                const emp = await employeeCollections.findOne({ _id: new ObjectId(id) });
+                if (!emp) return res.status(404).json({ message: "Employee not found" });
+
+                // 1) Update employee designation
+                await employeeCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { designation: newDesignation } }
+                );
+
+                // 2) Upsert role in userCollections based on designation
+                const role = roleForDesignation(newDesignation);
+                if (emp.email) {
+                    const exists = await userCollections.findOne({ email: emp.email });
+                    if (exists) {
+                        await userCollections.updateOne({ email: emp.email }, { $set: { role } });
+                    } else {
+                        // fallback: create if missing
+                        await userCollections.insertOne({
+                            email: emp.email,
+                            role,
+                            userName: emp.fullName || "",
+                            profilePic: emp.photo || "",
+                        });
+                    }
+                }
+
+                res.send({ success: true, newDesignation, role });
+            } catch (error) {
+                res.status(500).json({ message: "Failed to update designation", error: error?.message });
             }
         });
 
