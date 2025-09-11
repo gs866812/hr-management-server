@@ -6,6 +6,7 @@ const cors = require('cors');
 const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const moment = require("moment-timezone");
+const nodemailer = require("nodemailer");
 require('dotenv').config();
 const multer = require('multer');
 const { uploadToCloudinary } = require("./uploadPhoto");
@@ -149,6 +150,7 @@ async function run() {
         const employeeNotificationCollections = database.collection("employeeNotificationList");
         const appliedLeaveCollections = database.collection("appliedLeaveList");
         const leaveBalanceCollections = database.collection("leaveBalanceList");
+        const noticeBoardCollections = database.collection("noticeBoardList");
 
         // ******************store unpaid once********************************************************
         // const unpaidEntries = await earningsCollections.find({ status: { $ne: 'Paid' } }).toArray();
@@ -212,6 +214,80 @@ async function run() {
         // initializeLeaveBalance();
 
         // ******************************************************************************************
+        // SMTP transporter
+        const mailTransporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST,
+            port: Number(process.env.SMTP_PORT || 587),
+            secure: Number(process.env.SMTP_PORT) === 465, // true for 465, false otherwise
+            auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS,
+            },
+        });
+
+        // ******************************************************************************************
+        function normRole(role) {
+            return String(role || "").trim().toLowerCase();
+        }
+
+        async function ensureCanPostNotice(email) {
+            const u = await userCollections.findOne({ email }, { projection: { role: 1 } });
+            const allowed = new Set(["admin", "hr-admin", "developer"]); // roles in userCollections
+            if (!u || !allowed.has(normRole(u.role))) {
+                const err = new Error("Only Admin, HR-ADMIN, or Developer can post notices");
+                err.status = 403;
+                throw err;
+            }
+        }
+
+
+        // ******************************************************************************************
+        async function uploadPdfBufferOrNull(file) {
+            if (!file) return null;
+            if (file.mimetype !== "application/pdf") {
+                const err = new Error("Only PDF files are allowed");
+                err.status = 400;
+                throw err;
+            }
+            // your helper: uploadToCloudinary(buffer) -> url
+            const url = await uploadToCloudinary(file.buffer);
+            return url;
+        }
+
+        // ******************************************************************************************
+        async function emailAllEmployees({ title, body, fileUrl, effectiveDate, createdBy }) {
+            const cursor = employeeCollections.find({}, { projection: { email: 1, fullName: 1 } });
+            const emails = [];
+            await cursor.forEach((doc) => { if (doc?.email) emails.push(doc.email); });
+            if (!emails.length) return;
+
+            const subject = `Notice: ${title}`;
+            const html = `
+    <div style="font-family:sans-serif;">
+      <h2 style="margin:0 0 8px;">${title}</h2>
+      <div style="color:#555;margin:0 0 12px;">Effective: ${effectiveDate ? new Date(effectiveDate).toDateString() : "—"}</div>
+      <div style="white-space:pre-wrap;margin-bottom:12px;">${(body || "").replace(/\n/g, "<br/>")}</div>
+      ${fileUrl ? `<p><a href="${fileUrl}" target="_blank">View / Download PDF</a></p>` : ""}
+      <hr/>
+      <small>Posted by ${createdBy?.fullName || createdBy?.email || "Admin"}</small>
+    </div>
+  `;
+
+            // Batch BCC to avoid SMTP limits (e.g., 50 per batch)
+            const batchSize = 50;
+            for (let i = 0; i < emails.length; i += batchSize) {
+                const slice = emails.slice(i, i + batchSize);
+                await mailTransporter.sendMail({
+                    from: process.env.EMAIL_FROM,
+                    to: process.env.EMAIL_FROM, // primary "to" (your org address)
+                    bcc: slice,
+                    subject,
+                    html,
+                });
+            }
+        }
+
+        // ******************************************************************************************
         // Helper function to determine role based on designation
         function roleForDesignation(designation) {
             const t = (designation || "").toString().trim().toLowerCase();
@@ -219,7 +295,8 @@ async function run() {
             if (t === "admin") return "Admin";
             if (t === "hr-admin" || t === "hr admin" || t === "hr") return "HR-ADMIN";
             if (t === "team leader" || t === "team-leader" || t === "tl") return "teamLeader";
-            if (t === "developer" || t.includes("developer")) return "developer";
+            if (t === "developer" || t.includes("developer")) return "Developer";
+            if (t === "employee" || t.includes("employee")) return "employee";
             // Everyone else is a normal employee
             return "employee";
         }
@@ -968,7 +1045,7 @@ async function run() {
                 await adminNotificationCollections.insertOne({
                     notification: `New leave request received`,
                     email: email,
-                    link: "/payroll"
+                    link: "/appliedLeave"
                 });
 
                 if (result.insertedId) {
@@ -2836,6 +2913,92 @@ async function run() {
                 res.send({ success: true, newDesignation, role });
             } catch (error) {
                 res.status(500).json({ message: "Failed to update designation", error: error?.message });
+            }
+        });
+
+        // ************************************************************************************************
+        app.get("/notice/list", verifyToken, async (req, res) => {
+            try {
+                const requestedEmail = req.query.userEmail;
+                const tokenEmail = req.user.email;
+                if (requestedEmail !== tokenEmail) {
+                    return res.status(403).send({ message: "Forbidden Access" });
+                }
+
+                const list = await noticeBoardCollections
+                    .find({})
+                    .sort({ effectiveDate: -1, createdAt: -1 })
+                    .toArray();
+
+                res.send(list);
+            } catch (error) {
+                res.status(500).json({ message: "Failed to load notices" });
+            }
+        });
+
+        // ************************************************************************************************
+        app.post("/notice/create", verifyToken, upload.single("file"), async (req, res) => {
+            try {
+                const requestedEmail = req.query.userEmail;
+                const tokenEmail = req.user.email;
+                if (requestedEmail !== tokenEmail) {
+                    return res.status(403).send({ message: "Forbidden Access" });
+                }
+
+                // Admin only
+                await ensureCanPostNotice(tokenEmail);
+
+                const { title, body, priority, effectiveDate, expiryDate, sendEmail } = req.body;
+                if (!title || !title.trim()) return res.status(400).json({ message: "Title is required" });
+
+                // upload PDF (optional)
+                let fileUrl = null;
+                if (req.file) {
+                    fileUrl = await uploadPdfBufferOrNull(req.file);
+                }
+
+                // author info
+                const emp = await employeeCollections.findOne({ email: tokenEmail }, { projection: { fullName: 1, email: 1 } });
+                const createdBy = {
+                    email: tokenEmail,
+                    fullName: emp?.fullName || "",
+                };
+
+                const now = new Date();
+                const doc = {
+                    title: String(title || "").trim(),
+                    body: String(body || "").trim(),
+                    priority: ["info", "high", "normal"].includes(String(priority)) ? priority : "normal",
+                    effectiveDate: effectiveDate ? new Date(effectiveDate) : now,
+                    expiryDate: expiryDate ? new Date(expiryDate) : null,
+                    fileUrl,
+                    fileName: req.file?.originalname || null,
+                    createdAt: now,
+                    createdBy,
+                };
+
+                const result = await noticeBoardCollections.insertOne(doc);
+
+                // optional email blast
+                if (String(sendEmail).toLowerCase() === "true") {
+                    try {
+                        await emailAllEmployees({
+                            title: doc.title,
+                            body: doc.body,
+                            fileUrl: doc.fileUrl,
+                            effectiveDate: doc.effectiveDate,
+                            createdBy,
+                        });
+                    } catch (mailErr) {
+                        // Don’t fail the API if email sending fails—just report
+                        console.error("Email send failed:", mailErr?.message || mailErr);
+                    }
+                }
+
+                res.send({ insertedId: result.insertedId, ...doc });
+            } catch (error) {
+                const code = error?.status || 500;
+                res.status(code).json({ message: error?.message || "Failed to create notice" });
             }
         });
 
