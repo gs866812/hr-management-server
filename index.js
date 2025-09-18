@@ -75,17 +75,23 @@ const verifyToken = (req, res, next) => {
 // ************************************************************************************************
 
 // JWT token generation
-app.post("/jwt", (req, res) => {
-    const { email } = req.body;
-    if (!email) {
-        return res.status(400).send({ message: "Email is required" });
-    }
+// app.post("/jwt", (req, res) => {
+//     const { email } = req.body;
+//     if (!email) {
+//         return res.status(400).send({ message: "Email is required" });
+//     }
 
-    const token = jwt.sign({ email }, TOKEN_SECRET, {
-        expiresIn: "24h",
-    });
-    res.send({ success: true, token });
-});
+//     const token = jwt.sign({ email }, TOKEN_SECRET, {
+//         expiresIn: "24h",
+//     });
+//     res.send({ success: true, token });
+// });
+
+// REPLACE your existing /jwt with this hardening (after client/db are ready)
+
+
+
+
 // ************************************************************************************************
 // JWT token validation route
 app.post("/validate-token", (req, res) => {
@@ -151,6 +157,36 @@ async function run() {
         const appliedLeaveCollections = database.collection("appliedLeaveList");
         const leaveBalanceCollections = database.collection("leaveBalanceList");
         const noticeBoardCollections = database.collection("noticeBoardList");
+
+        // ******************store unpaid once********************************************************
+        // JWT token generation (must be inside run() so it can see employeeCollections)
+        app.post("/jwt", async (req, res) => {
+            try {
+                const { email } = req.body || {};
+                if (!email) return res.status(400).send({ message: "Email is required" });
+                if (!TOKEN_SECRET) return res.status(500).send({ message: "Server misconfiguration (TOKEN_SECRET)" });
+
+                const normEmail = String(email).trim().toLowerCase();
+
+                // If employee exists and is deactivated, block issuing token
+                const emp = await employeeCollections.findOne(
+                    { email: normEmail },
+                    { projection: { status: 1 } }
+                );
+
+                if (emp && String(emp.status).toLowerCase() === "de-activate") {
+                    return res.status(403).send({
+                        message: "Your account has been deactivated. Please contact HR.",
+                    });
+                }
+
+                const token = jwt.sign({ email: normEmail }, TOKEN_SECRET, { expiresIn: "24h" });
+                res.send({ success: true, token });
+            } catch (err) {
+                console.error("POST /jwt failed:", err?.message || err);
+                res.status(500).send({ message: "Failed to create token" });
+            }
+        });
 
         // ******************store unpaid once********************************************************
         // const unpaidEntries = await earningsCollections.find({ status: { $ne: 'Paid' } }).toArray();
@@ -299,6 +335,19 @@ async function run() {
             if (t === "employee" || t.includes("employee")) return "employee";
             // Everyone else is a normal employee
             return "employee";
+        }
+
+        // ******************************************************************************************
+        // put this near your other helpers (after ensureCanPostNotice)
+        function norm(role) { return String(role || "").trim().toLowerCase(); }
+        async function ensureCanManageEmployees(email) {
+            const u = await userCollections.findOne({ email }, { projection: { role: 1 } });
+            const allowed = new Set(["admin", "hr-admin", "developer"]);
+            if (!u || !allowed.has(norm(u.role))) {
+                const err = new Error("Only Admin, HR-ADMIN, or Developer can change employee status");
+                err.status = 403;
+                throw err;
+            }
         }
 
         // ******************************************************************************************
@@ -2221,23 +2270,18 @@ async function run() {
             }
         });
         // ************************************************************************************************
+        // /getSalaryAndPF – always return an array with one safe object
         app.get("/getSalaryAndPF", verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
-                const email = req.user.email;
+                if (userMail !== req.user.email) return res.status(401).send({ message: "Forbidden Access" });
 
-
-
-                if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                const docs = await PFAndSalaryCollections.find({ email: userMail }).toArray();
+                if (!docs.length) {
+                    return res.send([{ email: userMail, salary: 0, pfContribution: 0, pfStatus: "inactive" }]);
                 }
-
-                const result = await PFAndSalaryCollections
-                    .find({ email: userMail })
-                    .toArray();
-                res.send(result);
-            } catch (error) {
-                console.error("Error fetching attendance:", error.message);
+                res.send(docs);
+            } catch {
                 res.status(500).json({ message: "Failed to fetch attendance" });
             }
         });
@@ -2857,13 +2901,25 @@ async function run() {
                     return res.status(403).send({ message: "Forbidden Access" });
                 }
 
-                const list = await employeeCollections.distinct("designation");
-                const cleaned = (list || []).filter(Boolean).map(String).sort((a, b) => a.localeCompare(b));
+                if (!employeeCollections) {
+                    // This happens if the route was registered outside run()
+                    return res.status(500).json({ message: "employeeCollections not initialized" });
+                }
+
+                // distinct needs no filter, but pass {} explicitly
+                const list = await employeeCollections.distinct("designation", {});
+                const cleaned = (Array.isArray(list) ? list : [])
+                    .filter(Boolean)
+                    .map((v) => String(v))
+                    .sort((a, b) => a.localeCompare(b));
+
                 res.send(cleaned);
             } catch (error) {
+                console.error("GET /admin/designations failed:", error); // <— add this
                 res.status(500).json({ message: "Failed to fetch designations" });
             }
         });
+
 
         // ************************************************************************************************
         app.put("/admin/employee/:id/designation", verifyToken, async (req, res) => {
@@ -2937,6 +2993,28 @@ async function run() {
         });
 
         // ************************************************************************************************
+        // GET /admin/pf-salary?userEmail=<admin>&employeeEmail=<emp>
+        app.get("/admin/pf-salary", verifyToken, async (req, res) => {
+            try {
+                const requestedEmail = req.query.userEmail;
+                if (requestedEmail !== req.user.email) {
+                    return res.status(403).send({ message: "Forbidden Access" });
+                }
+                const employeeEmail = req.query.employeeEmail;
+                if (!employeeEmail) return res.status(400).send({ message: "employeeEmail required" });
+
+                const doc = await PFAndSalaryCollections.findOne({ email: employeeEmail });
+                res.send(
+                    doc
+                        ? { email: doc.email, salary: doc.salary, pfContribution: doc.pfContribution, pfStatus: doc.pfStatus }
+                        : { email: employeeEmail, salary: 0, pfContribution: 0, pfStatus: "inactive" }
+                );
+            } catch {
+                res.status(500).json({ message: "Failed to fetch PF/Salary" });
+            }
+        });
+
+        // ************************************************************************************************
         app.post("/notice/create", verifyToken, upload.single("file"), async (req, res) => {
             try {
                 const requestedEmail = req.query.userEmail;
@@ -2999,6 +3077,54 @@ async function run() {
             } catch (error) {
                 const code = error?.status || 500;
                 res.status(code).json({ message: error?.message || "Failed to create notice" });
+            }
+        });
+
+        // ************************************************************************************************
+        // NEW: toggle (or set) employee status. Accepts { status: "Active" | "De-activate" }
+        app.put("/admin/employee/:id/status", verifyToken, async (req, res) => {
+            try {
+                const requestedEmail = req.query.userEmail;
+                const tokenEmail = req.user.email;
+                if (requestedEmail !== tokenEmail) {
+                    return res.status(403).send({ message: "Forbidden Access" });
+                }
+
+                // gate by role
+                await ensureCanManageEmployees(tokenEmail);
+
+                const { id } = req.params;
+                const { status } = req.body; // "Active" or "De-activate"
+                if (!ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid employee id" });
+                if (!["Active", "De-activate"].includes(String(status))) {
+                    return res.status(400).json({ message: "Invalid status" });
+                }
+
+                const emp = await employeeCollections.findOne({ _id: new ObjectId(id) }, { projection: { email: 1, fullName: 1, status: 1 } });
+                if (!emp) return res.status(404).json({ message: "Employee not found" });
+
+                await employeeCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { status } }
+                );
+
+                // create an in-app employee notification
+                if (emp.email) {
+                    const note = status === "De-activate"
+                        ? "Your account has been de-activated. You can no longer access the portal."
+                        : "Your account has been re-activated. You can access the portal again.";
+                    await employeeNotificationCollections.insertOne({
+                        notification: note,
+                        email: emp.email,
+                        link: "/",
+                        isRead: false,
+                        createdAt: new Date()
+                    });
+                }
+
+                res.send({ success: true, status });
+            } catch (error) {
+                res.status(error?.status || 500).json({ message: error?.message || "Failed to update status" });
             }
         });
 
