@@ -3129,6 +3129,102 @@ async function run() {
         });
 
         // ************************************************************************************************
+        // Update an order's editable fields (everything except status & userName)
+        // Edit an existing local order (no status/user edits, and blocked if locked)
+        app.put("/orders/:id/edit", verifyToken, async (req, res) => {
+            try {
+                const requestedEmail = req.query.userEmail;
+                console.log(requestedEmail);
+                const tokenEmail = req.user.email;
+                if (requestedEmail !== tokenEmail) {
+                    return res.status(403).json({ message: "Forbidden Access" }); // stay consistent with other admin routes
+                }
+
+                const { id } = req.params;
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ message: "Invalid order id" });
+                }
+
+                // find order and ensure not locked
+                const order = await localOrderCollections.findOne(
+                    { _id: new ObjectId(id) },
+                    { projection: { isLocked: 1 } }
+                );
+                if (!order) return res.status(404).json({ message: "Order not found" });
+                if (
+                    order.isLocked ||
+                    ["Completed", "Delivered"].includes(String(order.orderStatus))
+                ) {
+                    return res
+                        .status(423)
+                        .json({ message: "Order is locked/completed/delivered and cannot be edited." });
+                }
+
+                // Allowed fields (EXCLUDES orderStatus and userName)
+                let {
+                    clientID,
+                    orderName,
+                    orderQTY,
+                    orderPrice,
+                    orderDeadLine,
+                    orderInstructions,
+                    needServices,
+                    returnFormat,
+                    colorCode,
+                    imageResize,
+                    date, // same "DD-MMM-YYYY" format you already use
+                } = req.body || {};
+
+                // Gentle normalization (optional)
+                if (orderQTY !== undefined) {
+                    const n = Number(orderQTY);
+                    orderQTY = Number.isFinite(n) ? n : 0;
+                }
+                if (orderPrice !== undefined) {
+                    const n = Number(orderPrice);
+                    orderPrice = Number.isFinite(n) ? n : 0;
+                }
+                if (needServices !== undefined && !Array.isArray(needServices)) {
+                    needServices = []; // ensure array
+                }
+
+                const update = {
+                    ...(clientID !== undefined && { clientID: String(clientID) }),
+                    ...(orderName !== undefined && { orderName: String(orderName) }),
+                    ...(orderQTY !== undefined && { orderQTY }),
+                    ...(orderPrice !== undefined && { orderPrice }),
+                    ...(orderDeadLine !== undefined && { orderDeadLine: String(orderDeadLine) }),
+                    ...(orderInstructions !== undefined && { orderInstructions: String(orderInstructions) }),
+                    ...(needServices !== undefined && { needServices }),
+                    ...(returnFormat !== undefined && { returnFormat: String(returnFormat) }),
+                    ...(colorCode !== undefined && { colorCode: String(colorCode) }),
+                    ...(imageResize !== undefined && { imageResize: String(imageResize) }),
+                    ...(date !== undefined && { date: String(date) }),
+                    lastUpdated: Date.now(),
+                };
+
+                // If nothing to update, short-circuit
+                if (Object.keys(update).length === 1) { // only lastUpdated present
+                    return res.status(200).json({ message: "No changes detected" });
+                }
+
+                const result = await localOrderCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: update }
+                );
+
+                if (result.modifiedCount === 0) {
+                    return res.status(200).json({ message: "No changes detected" });
+                }
+
+                res.json({ message: "Order updated successfully" });
+            } catch (err) {
+                res.status(500).json({ message: "Failed to update order", error: err?.message });
+            }
+        });
+
+
+        // ************************************************************************************************
 
         console.log(
             "Pinged your deployment. You successfully connected to MongoDB!"
