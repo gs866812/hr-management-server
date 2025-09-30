@@ -1423,8 +1423,6 @@ async function run() {
                 const id = req.params.id;
                 const { amount, year, month } = req.body;
 
-                console.log("Received ID:", id, "Amount:", amount, "Year:", year, "Month:", month);
-
                 const isID = await earningsCollections.findOne({ _id: new ObjectId(id) });
 
                 if (!isID) {
@@ -3134,7 +3132,6 @@ async function run() {
         app.put("/orders/:id/edit", verifyToken, async (req, res) => {
             try {
                 const requestedEmail = req.query.userEmail;
-                console.log(requestedEmail);
                 const tokenEmail = req.user.email;
                 if (requestedEmail !== tokenEmail) {
                     return res.status(403).json({ message: "Forbidden Access" }); // stay consistent with other admin routes
