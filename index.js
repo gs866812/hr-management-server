@@ -157,6 +157,9 @@ async function run() {
         const appliedLeaveCollections = database.collection("appliedLeaveList");
         const leaveBalanceCollections = database.collection("leaveBalanceList");
         const noticeBoardCollections = database.collection("noticeBoardList");
+        const leaveApplicationsCollections = database.collection("leaveApplications");
+        const salaryAndPFCollections = database.collection("salaryAndPFList");
+        const workingShiftCollections = database.collection("workingShiftList");
 
         // ******************store unpaid once********************************************************
         // JWT token generation (must be inside run() so it can see employeeCollections)
@@ -2300,39 +2303,42 @@ async function run() {
 
 
         // ************************************************************************************************
+        // Working shift for the logged-in employee (secure)
         app.get("/gethWorkingShift", verifyToken, async (req, res) => {
             try {
-                const userMail = req.query.userEmail;
-                const email = req.user.email;
-
-                if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                const requestedEmail = req.query.userEmail;
+                if (requestedEmail !== req.user.email) {
+                    return res.status(403).send({ message: "Forbidden Access" });
                 }
 
-                const findShifting = await shiftingCollections.findOne({ email: userMail });
-
-                res.send(findShifting.shiftName || "No Shift Assigned");
-
+                const shiftDoc = await shiftingCollections.findOne({ email: requestedEmail });
+                res.send(shiftDoc?.shiftName || "No Shift Assigned");
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch employee list' });
+                res.status(500).json({ message: "Failed to fetch working shift", error: error.message });
             }
         });
+
         // ************************************************************************************************
         // /getSalaryAndPF – always return an array with one safe object
+        // Salary & PF for the logged-in employee (secure)
         app.get("/getSalaryAndPF", verifyToken, async (req, res) => {
             try {
-                const userMail = req.query.userEmail;
-                if (userMail !== req.user.email) return res.status(401).send({ message: "Forbidden Access" });
+                const requestedEmail = req.query.userEmail;
+                if (requestedEmail !== req.user.email) {
+                    return res.status(403).send({ message: "Forbidden Access" });
+                }
 
-                const docs = await PFAndSalaryCollections.find({ email: userMail }).toArray();
+                const docs = await PFAndSalaryCollections.find({ email: requestedEmail }).toArray();
                 if (!docs.length) {
-                    return res.send([{ email: userMail, salary: 0, pfContribution: 0, pfStatus: "inactive" }]);
+                    // Safe default so UI doesn't break
+                    return res.send([{ email: requestedEmail, salary: 0, pfContribution: 0, pfStatus: "inactive" }]);
                 }
                 res.send(docs);
-            } catch {
-                res.status(500).json({ message: "Failed to fetch attendance" });
+            } catch (error) {
+                res.status(500).json({ message: "Failed to fetch salary/PF", error: error.message });
             }
         });
+
         // ************************************************************************************************
         // Get a single shareholder by ID
         app.get("/getSingleShareholder/:id", verifyToken, async (req, res) => {
@@ -2752,24 +2758,27 @@ async function run() {
             }
         });
         // ************************************************************************************************
+        // All leave applications (secure); client can filter own entries
+        // All leave applications (secure); client can filter own entries
         app.get("/getAppliedLeave", verifyToken, async (req, res) => {
             try {
-                const userMail = req.query.userEmail;
-                const email = req.user.email;
-
-                if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                const requestedEmail = req.query.userEmail;
+                if (requestedEmail !== req.user.email) {
+                    return res.status(403).send({ message: "Forbidden Access" });
                 }
 
-                const appliedLeave = await appliedLeaveCollections.find().sort({ _id: -1 }).toArray();
-
+                const appliedLeave = await appliedLeaveCollections
+                    .find({})
+                    .sort({ _id: -1 })
+                    .toArray();
 
                 res.send(appliedLeave);
-
             } catch (error) {
-                res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
+                res.status(500).json({ message: "Failed to fetch applied leaves", error: error.message });
             }
         });
+
+
         // ************************************************************************************************
         app.get("/getEmployeeNotification", verifyToken, async (req, res) => {
             try {
@@ -2791,45 +2800,55 @@ async function run() {
         });
         // ************************************************************************************************
         // --- Admin Attendance across employees ---
+        // Admin/employee attendance list (secure)
         app.get("/admin/attendance/list", verifyToken, async (req, res) => {
             try {
                 const { userEmail, start, end, employeeEmail, q } = req.query;
-                if (userEmail !== req.user.email) return res.status(401).json({ message: "Forbidden Access" });
 
+                // Gate: only the logged-in user can call this
+                if (userEmail !== req.user.email) {
+                    return res.status(403).json({ message: "Forbidden Access" });
+                }
+
+                if (!start || !end) {
+                    return res.status(400).json({ message: "start and end (YYYY-MM-DD) are required" });
+                }
+
+                // Convert YYYY-MM-DD to ms (inclusive day window)
                 const startMs = new Date(start + "T00:00:00Z").getTime();
                 const endMs = new Date(end + "T23:59:59Z").getTime();
 
-                // attendanceList already stores merged check-in/out + OT (from your checkout/OT flows)
                 const match = {
-                    // we saved "date" as 'DD-MMM-YYYY' string; keep both guards:
-                    $and: [
-                        {
-                            $expr: {
-                                $and: [
-                                    { $gte: ["$checkInTime", startMs] },
-                                    { $lte: ["$checkInTime", endMs] }
-                                ]
-                            }
-                        },
-                    ]
+                    $expr: {
+                        $and: [
+                            { $gte: ["$checkInTime", startMs] },
+                            { $lte: ["$checkInTime", endMs] }
+                        ]
+                    },
                 };
-
                 if (employeeEmail) match.email = employeeEmail;
 
+                // Sort by checkInTime (NOT by _id), oldest→newest so tables render in order
                 const base = await attendanceCollections
                     .find(match)
                     .project({
                         email: 1, fullName: 1, date: 1, month: 1,
                         checkInTime: 1, checkOutTime: 1,
                         workingHourInSeconds: 1,
+                        workingDisplay: 1,
                         lateCheckIn: 1,
                         totalOTInSeconds: 1,
+                        displayOTHour: 1
                     })
                     .sort({ checkInTime: 1 })
                     .toArray();
 
+                // Optional simple text filter on name/email
                 const filtered = q
-                    ? base.filter(r => (r.fullName || "").toLowerCase().includes(q.toLowerCase()) || (r.email || "").toLowerCase().includes(q.toLowerCase()))
+                    ? base.filter(r =>
+                        (r.fullName || "").toLowerCase().includes(q.toLowerCase()) ||
+                        (r.email || "").toLowerCase().includes(q.toLowerCase())
+                    )
                     : base;
 
                 res.send(filtered);
@@ -2837,6 +2856,7 @@ async function run() {
                 res.status(500).json({ message: "Failed to load attendance", error: e?.message });
             }
         });
+
         // ************************************************************************************************
 
 
@@ -3385,6 +3405,15 @@ async function run() {
             }
         });
 
+        // ************************************************************************************************
+
+
+        // ************************************************************************************************
+
+        // ************************************************************************************************
+
+        // ************************************************************************************************
+        // ************************************************************************************************
         // ************************************************************************************************
 
         console.log(
