@@ -751,14 +751,6 @@ async function run() {
             const checkInInfo = req.body;
 
             try {
-                // Check if the user is on leave
-                const today = checkInInfo.date; // Assuming date is part of checkInInfo
-
-                // const isOnLeave = await employeeCollections.findOne({ email: checkInInfo.email, status: "On Leave" });
-                // if (isOnLeave) {
-                //     return res.json({ message: 'You are on leave' });
-                // }
-
                 // Check if the user already checked in today
                 const existingCheckIn = await checkInCollections.findOne({
                     email: checkInInfo.email,
@@ -767,10 +759,9 @@ async function run() {
 
                 if (existingCheckIn) {
                     return res.json({ message: 'Already checked in today' });
-                };
+                }
 
                 const shiftInfo = await shiftingCollections.findOne({ email: checkInInfo.email });
-
 
                 const now = moment().tz("Asia/Dhaka"); // BD time
                 const initialMorningShift = now.clone().startOf('day').add(5, 'hours').add(45, 'minutes').valueOf();
@@ -786,94 +777,73 @@ async function run() {
                 const eveningShiftStartForLateCount = now.clone().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
                 const eveningShiftLateCount = now.clone().startOf('day').add(18, 'hours').add(30, 'minutes').valueOf();
 
-
-
+                // Morning
                 if (shiftInfo.shiftName === "Morning" && now >= initialMorningShift && now <= morningShiftStart) {
-
                     const result = await checkInCollections.insertOne(checkInInfo);
+                    return result.insertedId
+                        ? res.status(200).json({ message: 'Check-in successful' })
+                        : res.json({ message: 'Check-in failed' });
 
-                    if (result.insertedId) {
-                        res.status(200).json({ message: 'Check-in successful' });
-                    } else {
-                        res.json({ message: 'Check-in failed' });
-                    }
                 } else if (shiftInfo.shiftName === "Morning" && now > morningShiftStart && now <= morningShiftLateCount) {
                     const lateCount = now - morningShiftStart;
                     const totalSeconds = Math.floor(lateCount / 1000);
                     const hours = Math.floor(totalSeconds / 3600) || 0;
                     const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
-                    const lateCountDisplay = `${hours}h ${minutes}m`;
+                    const lateCheckIn = `${hours}h ${minutes}m`;
 
-                    const result = await checkInCollections.insertOne({ ...checkInInfo, lateCheckIn: `${lateCountDisplay}` });
+                    const result = await checkInCollections.insertOne({ ...checkInInfo, lateCheckIn });
+                    return result.insertedId
+                        ? res.status(200).json({ message: 'You are late today' })
+                        : res.json({ message: 'Check-in failed' });
+                }
 
-                    if (result.insertedId) {
-                        res.status(200).json({ message: 'You are late today' });
-                    } else {
-                        res.json({ message: 'Check-in failed' });
-                    }
-                } else if (shiftInfo.shiftName === "General" && now >= initialGeneralShift && now <= generalShiftStart) {
-
+                // General
+                if (shiftInfo.shiftName === "General" && now >= initialGeneralShift && now <= generalShiftStart) {
                     const result = await checkInCollections.insertOne(checkInInfo);
+                    return result.insertedId
+                        ? res.status(200).json({ message: 'Check-in successful' })
+                        : res.json({ message: 'Check-in failed' });
 
-                    if (result.insertedId) {
-                        res.status(200).json({ message: 'Check-in successful' });
-                    } else {
-                        res.json({ message: 'Check-in failed' });
-                    }
                 } else if (shiftInfo.shiftName === "General" && now > generalShiftStart && now <= generalShiftLateCount) {
-                    const lateCount = now - generalShiftStart; // Calculate how late the check-in is
+                    const lateCount = now - generalShiftStart;
                     const totalSeconds = Math.floor(lateCount / 1000);
                     const hours = Math.floor(totalSeconds / 3600) || 0;
                     const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
-                    const lateCountDisplay = `${hours}h ${minutes}m`;
+                    const lateCheckIn = `${hours}h ${minutes}m`;
 
-                    const result = await checkInCollections.insertOne({ ...checkInInfo, lateCheckIn: `${lateCountDisplay}` });
+                    const result = await checkInCollections.insertOne({ ...checkInInfo, lateCheckIn });
+                    return result.insertedId
+                        ? res.status(200).json({ message: 'You are late today' })
+                        : res.json({ message: 'Check-in failed' });
+                }
 
-                    if (result.insertedId) {
-                        res.status(200).json({ message: 'You are late today' });
-                    } else {
-                        res.json({ message: 'Check-in failed' });
-                    }
-                } else if (shiftInfo.shiftName === "Evening" && now > InitialEveningShift && now <= eveningShiftStart) {
-
+                // Evening
+                if (shiftInfo.shiftName === "Evening" && now > InitialEveningShift && now <= eveningShiftStart) {
                     const result = await checkInCollections.insertOne(checkInInfo);
+                    return result.insertedId
+                        ? res.status(200).json({ message: 'Check-in successful' })
+                        : res.json({ message: 'Check-in failed' });
 
-                    if (result.insertedId) {
-                        res.status(200).json({ message: 'Check-in successful' });
-                    } else {
-                        res.json({ message: 'Check-in failed' });
-                    }
                 } else if (shiftInfo.shiftName === "Evening" && now > eveningShiftStart && now <= eveningShiftLateCount) {
                     const lateCount = now - eveningShiftStartForLateCount;
-
                     const totalSeconds = Math.floor(lateCount / 1000);
                     const hours = Math.floor(totalSeconds / 3600) || 0;
                     const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
-                    const lateCountDisplay = `${hours}h ${minutes}m`;
+                    const lateCheckIn = `${hours}h ${minutes}m`;
 
-                    const result = await checkInCollections.insertOne({ ...checkInInfo, lateCheckIn: `${lateCountDisplay}` });
-
-                    if (result.insertedId) {
-                        res.status(200).json({ message: 'You are late today' });
-                    } else {
-                        res.json({ message: 'Check-in failed' });
-                    }
-                } else {
-                    return res.json({ message: 'You are not eligible to check in at this time' });
+                    const result = await checkInCollections.insertOne({ ...checkInInfo, lateCheckIn });
+                    return result.insertedId
+                        ? res.status(200).json({ message: 'You are late today' })
+                        : res.json({ message: 'Check-in failed' });
                 }
 
-                const result = await checkInCollections.insertOne(checkInInfo);
-
-                if (result.insertedId) {
-                    res.status(200).json({ message: 'Check-in successful' });
-                } else {
-                    res.json({ message: 'Check-in failed' });
-                }
-
+                // None matched
+                return res.json({ message: 'You are not eligible to check in at this time' });
             } catch (error) {
                 res.status(500).json({ message: 'Failed to check in', error: error.message });
             }
         });
+
 
 
 
@@ -1801,13 +1771,12 @@ async function run() {
                 const page = parseInt(req.query.page) || 1;
                 const size = parseInt(req.query.size) || 10;
                 const search = req.query.search || "";
-
                 const disablePagination = req.query.disablePagination === "true";
 
                 let numericSearch = parseFloat(search);
                 numericSearch = isNaN(numericSearch) ? null : numericSearch;
 
-                const query = search
+                const match = search
                     ? {
                         $or: [
                             { userName: { $regex: new RegExp(search, "i") } },
@@ -1815,41 +1784,122 @@ async function run() {
                             { orderName: { $regex: new RegExp(search, "i") } },
                             { orderQTY: { $regex: new RegExp(search, "i") } },
                             { orderStatus: { $regex: new RegExp(search, "i") } },
-                            ...(numericSearch !== null ?
-                                [
-                                    { orderPrice: numericSearch },
-                                ]
-                                : []),
+                            ...(numericSearch !== null ? [{ orderPrice: numericSearch }] : []),
                         ],
                     }
                     : {};
 
-                if (!localOrderCollections) {
-                    return res.status(500).json({ message: "Database connection issue" });
-                }
+                const pipeline = [
+                    { $match: match },
+
+                    // Try multiple ways to parse the chosen date:
+                    // 1) ISO or native date
+                    // 2) "DD-MMM-YYYY" (e.g., 15-Aug-2025)
+                    // 3) "DD-MM-YYYY"
+                    {
+                        $addFields: {
+                            _tryISO: {
+                                $convert: { input: "$date", to: "date", onError: null, onNull: null }
+                            },
+                            _tryDmyMon: {
+                                $dateFromString: {
+                                    dateString: "$date",
+                                    format: "%d-%b-%Y",
+                                    onError: null,
+                                    onNull: null
+                                }
+                            },
+                            _tryDmyDash: {
+                                $dateFromString: {
+                                    dateString: "$date",
+                                    format: "%d-%m-%Y",
+                                    onError: null,
+                                    onNull: null
+                                }
+                            },
+                            _tryDeadlineFmt: {
+                                $dateFromString: {
+                                    dateString: "$orderDeadLine",
+                                    format: "%d-%b-%Y %H:%M:%S",
+                                    onError: null,
+                                    onNull: null
+                                }
+                            },
+                            _tryDeadlineISO: {
+                                $convert: { input: "$orderDeadLine", to: "date", onError: null, onNull: null }
+                            }
+                        }
+                    },
+
+                    // Choose first non-null candidate as the raw key
+                    {
+                        $addFields: {
+                            _rawDateKey: {
+                                $ifNull: [
+                                    "$_tryISO",
+                                    {
+                                        $ifNull: [
+                                            "$_tryDmyMon",
+                                            {
+                                                $ifNull: [
+                                                    "$_tryDmyDash",
+                                                    {
+                                                        $ifNull: [
+                                                            "$_tryDeadlineFmt",
+                                                            "$_tryDeadlineISO"
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    },
+
+                    // Truncate to midnight in Asia/Dhaka so all items that day group together
+                    {
+                        $addFields: {
+                            dateKey: {
+                                $cond: [
+                                    { $ne: ["$_rawDateKey", null] },
+                                    { $dateTrunc: { date: "$_rawDateKey", unit: "day", timezone: "Asia/Dhaka" } },
+                                    // If we still couldn't parse, push it to the very end
+                                    new Date(0)
+                                ]
+                            },
+                            _lastUpdatedOrZero: { $ifNull: ["$lastUpdated", 0] }
+                        }
+                    },
+
+                    // Sort by chosen date (desc), then recent update, then _id
+                    { $sort: { dateKey: -1, _lastUpdatedOrZero: -1, _id: -1 } }
+                ];
+
+                const count = await localOrderCollections.countDocuments(match);
 
                 let orders;
                 if (disablePagination) {
-                    orders = await localOrderCollections
-                        .find(query)
-                        .sort({ _id: -1 })
-                        .toArray();
+                    orders = await localOrderCollections.aggregate(pipeline).toArray();
                 } else {
                     orders = await localOrderCollections
-                        .find(query)
-                        .skip((page - 1) * size)
-                        .limit(size)
-                        .sort({ _id: -1 })
+                        .aggregate([
+                            ...pipeline,
+                            { $skip: (page - 1) * size },
+                            { $limit: size }
+                        ])
                         .toArray();
                 }
 
-                const count = await localOrderCollections.countDocuments(query);
-                // const result = await localOrderCollections.find({}).sort({ _id: -1 }).toArray();
                 res.send({ orders, count });
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch expense' });
+                res.status(500).json({ message: "Failed to fetch orders", error: error?.message });
             }
         });
+
+
+
 
         // ************************************************************************************************
         app.get("/getSingleOrder/:orderId", verifyToken, async (req, res) => {
@@ -3220,6 +3270,120 @@ async function run() {
             }
         });
 
+
+        // ************************************************************************************************
+        // --- SALARY PIN: set or change ---
+        app.post("/employee/salary-pin/set", async (req, res) => {
+            try {
+                const requestedEmail = req.query.userEmail;
+
+                const { currentPin, newPin } = req.body || {};
+                if (!newPin || typeof newPin !== "string" || newPin.length < 4 || newPin.length > 12) {
+                    return res.status(400).json({ message: "PIN must be 4-12 characters" });
+                }
+
+                const emp = await employeeCollections.findOne(
+                    { email: requestedEmail },
+                    { projection: { salaryPinHash: 1 } }
+                );
+                if (!emp) return res.status(404).json({ message: "Employee not found" });
+
+                // If a pin already exists, require currentPin
+                if (emp.salaryPinHash) {
+                    if (!currentPin) return res.status(400).json({ message: "Current PIN is required" });
+                    const ok = await bcrypt.compare(currentPin, emp.salaryPinHash);
+                    if (!ok) return res.status(401).json({ message: "Current PIN is incorrect" });
+                }
+
+                const salt = await bcrypt.genSalt(10);
+                const salaryPinHash = await bcrypt.hash(newPin, salt);
+
+                await employeeCollections.updateOne(
+                    { email: requestedEmail },
+                    { $set: { salaryPinHash, salaryPinUpdatedAt: new Date() } }
+                );
+
+                res.json({ success: true, message: "PIN saved successfully" });
+            } catch (e) {
+                res.status(500).json({ message: "Failed to set PIN" });
+            }
+        });
+
+        // --- SALARY PIN: verify (unlock) ---
+        app.post("/employee/salary-pin/verify", async (req, res) => {
+            try {
+                const requestedEmail = req.query.userEmail;
+
+
+                const { pin } = req.body || {};
+                if (!pin) return res.status(400).json({ message: "PIN required" });
+
+                const emp = await employeeCollections.findOne(
+                    { email: requestedEmail },
+                    { projection: { salaryPinHash: 1 } }
+                );
+                if (!emp?.salaryPinHash) {
+                    return res.status(404).json({ message: "No PIN set" });
+                }
+
+                const ok = await bcrypt.compare(pin, emp.salaryPinHash);
+                if (!ok) return res.status(401).json({ message: "Invalid PIN" });
+
+                res.json({ success: true });
+            } catch (e) {
+                res.status(500).json({ message: "Failed to verify PIN" });
+            }
+        });
+
+        // ************************************************************************************************
+        // Cancel an order: lock it and set status = "Cancel"
+        app.put("/orderStatusCancel/:orderId", async (req, res) => {
+            try {
+                const id = req.params.orderId;
+
+                const order = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                if (!order) return res.status(404).json({ message: "Order not found" });
+
+                // You may also want to freeze timers. We'll keep existing times as-is.
+                const result = await localOrderCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    {
+                        $set: {
+                            orderStatus: "Cancel",
+                            isLocked: true
+                        }
+                    }
+                );
+
+                res.send(result);
+            } catch (error) {
+                res.status(500).json({ message: "Failed to cancel order" });
+            }
+        });
+
+        // Restore a canceled order: unlock it and set status = "Pending"
+        app.put("/orderStatusRestore/:orderId", async (req, res) => {
+            try {
+                const id = req.params.orderId;
+
+                const order = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                if (!order) return res.status(404).json({ message: "Order not found" });
+
+                const result = await localOrderCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    {
+                        $set: {
+                            orderStatus: "Pending",
+                            isLocked: false
+                        }
+                    }
+                );
+
+                res.send(result);
+            } catch (error) {
+                res.status(500).json({ message: "Failed to restore order" });
+            }
+        });
 
         // ************************************************************************************************
 
