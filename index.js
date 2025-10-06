@@ -3089,7 +3089,7 @@ async function run() {
                 if (!userEmail) return res.status(400).json({ message: "userEmail is required" });
 
                 // same-user guard (tightest). If you want Admin override, add role check here.
-                const tokenEmail = req?.decoded?.email;
+                const tokenEmail = req.user.email;
                 if (!tokenEmail) return res.status(401).json({ message: "Unauthorized" });
                 if (tokenEmail !== userEmail) return res.status(403).json({ message: "Forbidden" });
 
