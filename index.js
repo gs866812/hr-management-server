@@ -3088,63 +3088,20 @@ async function run() {
                 const { userEmail } = req.query;
                 if (!userEmail) return res.status(400).json({ message: "userEmail is required" });
 
-                // must be the same logged-in user or privileged role
+                // same-user guard (tightest). If you want Admin override, add role check here.
                 const tokenEmail = req?.decoded?.email;
                 if (!tokenEmail) return res.status(401).json({ message: "Unauthorized" });
-
-                // Optional role check (if you store roles where you do for currentUser)
-                // Only enforce strict same-user here for simplicity:
-                if (tokenEmail !== userEmail) {
-                    // if you want to allow admins, uncomment and adjust:
-                    // const me = await userCollections.findOne({ email: tokenEmail });
-                    // const isPriv = ["Admin", "Developer", "HR-ADMIN"].includes(me?.role);
-                    // if (!isPriv) return res.status(403).json({ message: "Forbidden" });
-                    return res.status(403).json({ message: "Forbidden" });
-                }
-
-                // Expected schema examples:
-                // A) Single doc per employee:
-                // { email, balances: [{ name:'Casual Leave', total:12, used:5 }, ...] }
-                // B) Flat fields:
-                // { email, casualTotal, casualUsed, sickTotal, sickUsed, ... }
-                // We'll support A primarily; if B detected, transform.
+                if (tokenEmail !== userEmail) return res.status(403).json({ message: "Forbidden" });
 
                 const doc = await leaveBalanceCollections.findOne({ email: userEmail });
 
-                let out = [];
+                if (!doc) return res.json([]);
 
-                if (doc?.balances && Array.isArray(doc.balances)) {
-                    out = doc.balances.map(b => ({
-                        name: b.name || b.type || "Leave",
-                        total: Number(b.total || 0),
-                        used: Number(b.used || 0),
-                        remaining: Math.max(0, Number(b.total || 0) - Number(b.used || 0)),
-                    }));
-                } else if (doc) {
-                    // Try to map common flat shapes -> balances
-                    const mapFlat = (label, tKey, uKey) => ({
-                        name: label,
-                        total: Number(doc[tKey] || 0),
-                        used: Number(doc[uKey] || 0),
-                        remaining: Math.max(0, Number(doc[tKey] || 0) - Number(doc[uKey] || 0)),
-                    });
-
-                    const guesses = [];
-                    if ("casualTotal" in doc || "casualUsed" in doc) {
-                        guesses.push(mapFlat("Casual Leave", "casualTotal", "casualUsed"));
-                    }
-                    if ("sickTotal" in doc || "sickUsed" in doc) {
-                        guesses.push(mapFlat("Sick Leave", "sickTotal", "sickUsed"));
-                    }
-                    if ("paidTotal" in doc || "paidUsed" in doc) {
-                        guesses.push(mapFlat("Paid Leave", "paidTotal", "paidUsed"));
-                    }
-                    if ("optionalTotal" in doc || "optionalUsed" in doc) {
-                        guesses.push(mapFlat("Optional Holidays", "optionalTotal", "optionalUsed"));
-                    }
-
-                    out = guesses.filter(x => x.total + x.used > 0);
-                }
+                // Map your schema: casualLeave, sickLeave are REMAINING days
+                const out = [
+                    { name: "Casual Leave", remaining: Number(doc.casualLeave ?? 0) },
+                    { name: "Sick Leave", remaining: Number(doc.sickLeave ?? 0) },
+                ];
 
                 return res.json(out);
             } catch (e) {
