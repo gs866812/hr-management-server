@@ -1666,6 +1666,38 @@ async function run() {
         });
 
         // ************************************************************************************************
+        // DELETE /orders/:id  (Admin or Developer suggested at UI; server can keep it open to authorized users or add role checks)
+        app.delete('/orders/:id', verifyToken, async (req, res) => {
+            try {
+                const requestedEmail = req.query.userEmail;
+                const tokenEmail = req.user.email;
+                if (requestedEmail !== tokenEmail) {
+                    return res.status(403).json({ message: 'Forbidden Access' });
+                }
+
+                const { id } = req.params;
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ message: 'Invalid order id' });
+                }
+
+                // Optionally block locked/finalized here too:
+                const order = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                if (!order) return res.status(404).json({ message: 'Order not found' });
+                if (order.isLocked || ['Completed', 'Delivered'].includes(String(order.orderStatus))) {
+                    return res.status(423).json({ message: 'Order is locked/finalized and cannot be deleted' });
+                }
+
+                const result = await localOrderCollections.deleteOne({ _id: new ObjectId(id) });
+                if (!result.deletedCount) {
+                    return res.status(400).json({ message: 'Failed to delete order' });
+                }
+
+                res.json({ success: true });
+            } catch (err) {
+                res.status(500).json({ message: 'Failed to delete order' });
+            }
+        });
+
         // ************************************************************************************************
 
 
