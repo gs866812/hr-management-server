@@ -162,6 +162,8 @@ async function run() {
         const workingShiftCollections = database.collection("workingShiftList");
 
         // ******************store unpaid once********************************************************
+        
+        // *******************************************************************************************
         // JWT token generation (must be inside run() so it can see employeeCollections)
         app.post("/jwt", async (req, res) => {
             try {
@@ -753,96 +755,251 @@ async function run() {
         app.post('/employee/checkIn', async (req, res) => {
             const checkInInfo = req.body;
 
+            // helper: seed/refresh today's attendance snapshot at (first) check-in
+            async function seedAttendanceSnapshot(lateCheckInValue) {
+                // get some employee fields for nicer reporting (if you keep these in attendance)
+                const emp = await employeeCollections.findOne(
+                    { email: checkInInfo.email },
+                    {
+                        projection: {
+                            fullName: 1,
+                            designation: 1,
+                            phoneNumber: 1,
+                            NID: 1,
+                            DOB: 1,
+                            emergencyContact: 1,
+                            address: 1,
+                            status: 1,
+                            eid: 1,
+                        },
+                    }
+                );
+
+                // month fallback from date if not provided
+                const monthFromDate =
+                    checkInInfo.month ||
+                    moment(checkInInfo.date, 'DD-MMM-YYYY').format('MMMM');
+
+                // Upsert so the row exists for admin dashboard immediately
+                await attendanceCollections.updateOne(
+                    { email: checkInInfo.email, date: checkInInfo.date },
+                    {
+                        $setOnInsert: {
+                            email: checkInInfo.email,
+                            date: checkInInfo.date,
+                            month: monthFromDate,
+                            fullName: emp?.fullName || '',
+                            designation: emp?.designation || '',
+                            phoneNumber: emp?.phoneNumber || '',
+                            NID: emp?.NID || '',
+                            DOB: emp?.DOB || '',
+                            emergencyContact: emp?.emergencyContact || '',
+                            address: emp?.address || '',
+                            status: emp?.status || '',
+                            eid: emp?.eid || '',
+                        },
+                        $set: {
+                            checkInTime: checkInInfo.checkInTime,
+                            lateCheckIn: lateCheckInValue || false,
+                        },
+                    },
+                    { upsert: true }
+                );
+            }
+
             try {
-                // Check if the user already checked in today
+                // prevent duplicate check-in for the same day
                 const existingCheckIn = await checkInCollections.findOne({
                     email: checkInInfo.email,
-                    date: checkInInfo.date, // match by email and today's date
+                    date: checkInInfo.date, // "DD-MMM-YYYY"
                 });
-
                 if (existingCheckIn) {
                     return res.json({ message: 'Already checked in today' });
                 }
 
-                const shiftInfo = await shiftingCollections.findOne({ email: checkInInfo.email });
+                // shift info
+                const shiftInfo = await shiftingCollections.findOne({
+                    email: checkInInfo.email,
+                });
+                if (!shiftInfo?.shiftName) {
+                    return res.json({ message: 'No shift assigned' });
+                }
 
-                const now = moment().tz("Asia/Dhaka"); // BD time
-                const initialMorningShift = now.clone().startOf('day').add(5, 'hours').add(45, 'minutes').valueOf();
-                const morningShiftStart = now.clone().startOf('day').add(6, 'hours').add(0, 'minutes').valueOf();
-                const morningShiftLateCount = now.clone().startOf('day').add(12, 'hours').add(0, 'minutes').valueOf();
+                const now = moment().tz('Asia/Dhaka');
+                const nowTs = now.valueOf();
 
-                const initialGeneralShift = now.clone().startOf('day').add(9, 'hours').add(45, 'minutes').valueOf();
-                const generalShiftStart = now.clone().startOf('day').add(10, 'hours').add(0, 'minutes').valueOf();
-                const generalShiftLateCount = now.clone().startOf('day').add(16, 'hours').add(0, 'minutes').valueOf();
+                // Morning shift windows
+                const initialMorningShift = now
+                    .clone()
+                    .startOf('day')
+                    .add(5, 'hours')
+                    .add(45, 'minutes')
+                    .valueOf();
+                const morningShiftStart = now
+                    .clone()
+                    .startOf('day')
+                    .add(6, 'hours')
+                    .add(0, 'minutes')
+                    .valueOf();
+                const morningShiftLateCount = now
+                    .clone()
+                    .startOf('day')
+                    .add(12, 'hours')
+                    .add(0, 'minutes')
+                    .valueOf();
 
-                const InitialEveningShift = now.clone().startOf('day').add(13, 'hours').add(45, 'minutes').valueOf();
-                const eveningShiftStart = now.clone().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
-                const eveningShiftStartForLateCount = now.clone().startOf('day').add(14, 'hours').add(5, 'minutes').valueOf();
-                const eveningShiftLateCount = now.clone().startOf('day').add(18, 'hours').add(30, 'minutes').valueOf();
+                // General shift windows
+                const initialGeneralShift = now
+                    .clone()
+                    .startOf('day')
+                    .add(9, 'hours')
+                    .add(45, 'minutes')
+                    .valueOf();
+                const generalShiftStart = now
+                    .clone()
+                    .startOf('day')
+                    .add(10, 'hours')
+                    .add(0, 'minutes')
+                    .valueOf();
+                const generalShiftLateCount = now
+                    .clone()
+                    .startOf('day')
+                    .add(16, 'hours')
+                    .add(0, 'minutes')
+                    .valueOf();
 
-                // Morning
-                if (shiftInfo.shiftName === "Morning" && now >= initialMorningShift && now <= morningShiftStart) {
+                // Evening shift windows
+                const InitialEveningShift = now
+                    .clone()
+                    .startOf('day')
+                    .add(13, 'hours')
+                    .add(45, 'minutes')
+                    .valueOf();
+                const eveningShiftStart = now
+                    .clone()
+                    .startOf('day')
+                    .add(14, 'hours')
+                    .add(5, 'minutes')
+                    .valueOf();
+                const eveningShiftStartForLateCount = now
+                    .clone()
+                    .startOf('day')
+                    .add(14, 'hours')
+                    .add(5, 'minutes')
+                    .valueOf();
+                const eveningShiftLateCount = now
+                    .clone()
+                    .startOf('day')
+                    .add(18, 'hours')
+                    .add(30, 'minutes')
+                    .valueOf();
+
+                // ---------- Morning ----------
+                if (
+                    shiftInfo.shiftName === 'Morning' &&
+                    nowTs >= initialMorningShift &&
+                    nowTs <= morningShiftStart
+                ) {
                     const result = await checkInCollections.insertOne(checkInInfo);
-                    return result.insertedId
-                        ? res.status(200).json({ message: 'Check-in successful' })
-                        : res.json({ message: 'Check-in failed' });
-
-                } else if (shiftInfo.shiftName === "Morning" && now > morningShiftStart && now <= morningShiftLateCount) {
-                    const lateCount = now - morningShiftStart;
+                    if (result.insertedId) {
+                        await seedAttendanceSnapshot(null);
+                        return res.status(200).json({ message: 'Check-in successful' });
+                    }
+                    return res.json({ message: 'Check-in failed' });
+                } else if (
+                    shiftInfo.shiftName === 'Morning' &&
+                    nowTs > morningShiftStart &&
+                    nowTs <= morningShiftLateCount
+                ) {
+                    const lateCount = nowTs - morningShiftStart;
                     const totalSeconds = Math.floor(lateCount / 1000);
                     const hours = Math.floor(totalSeconds / 3600) || 0;
                     const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
                     const lateCheckIn = `${hours}h ${minutes}m`;
 
-                    const result = await checkInCollections.insertOne({ ...checkInInfo, lateCheckIn });
-                    return result.insertedId
-                        ? res.status(200).json({ message: 'You are late today' })
-                        : res.json({ message: 'Check-in failed' });
+                    const result = await checkInCollections.insertOne({
+                        ...checkInInfo,
+                        lateCheckIn,
+                    });
+                    if (result.insertedId) {
+                        await seedAttendanceSnapshot(lateCheckIn);
+                        return res.status(200).json({ message: 'You are late today' });
+                    }
+                    return res.json({ message: 'Check-in failed' });
                 }
 
-                // General
-                if (shiftInfo.shiftName === "General" && now >= initialGeneralShift && now <= generalShiftStart) {
+                // ---------- General ----------
+                if (
+                    shiftInfo.shiftName === 'General' &&
+                    nowTs >= initialGeneralShift &&
+                    nowTs <= generalShiftStart
+                ) {
                     const result = await checkInCollections.insertOne(checkInInfo);
-                    return result.insertedId
-                        ? res.status(200).json({ message: 'Check-in successful' })
-                        : res.json({ message: 'Check-in failed' });
-
-                } else if (shiftInfo.shiftName === "General" && now > generalShiftStart && now <= generalShiftLateCount) {
-                    const lateCount = now - generalShiftStart;
+                    if (result.insertedId) {
+                        await seedAttendanceSnapshot(null);
+                        return res.status(200).json({ message: 'Check-in successful' });
+                    }
+                    return res.json({ message: 'Check-in failed' });
+                } else if (
+                    shiftInfo.shiftName === 'General' &&
+                    nowTs > generalShiftStart &&
+                    nowTs <= generalShiftLateCount
+                ) {
+                    const lateCount = nowTs - generalShiftStart;
                     const totalSeconds = Math.floor(lateCount / 1000);
                     const hours = Math.floor(totalSeconds / 3600) || 0;
                     const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
                     const lateCheckIn = `${hours}h ${minutes}m`;
 
-                    const result = await checkInCollections.insertOne({ ...checkInInfo, lateCheckIn });
-                    return result.insertedId
-                        ? res.status(200).json({ message: 'You are late today' })
-                        : res.json({ message: 'Check-in failed' });
+                    const result = await checkInCollections.insertOne({
+                        ...checkInInfo,
+                        lateCheckIn,
+                    });
+                    if (result.insertedId) {
+                        await seedAttendanceSnapshot(lateCheckIn);
+                        return res.status(200).json({ message: 'You are late today' });
+                    }
+                    return res.json({ message: 'Check-in failed' });
                 }
 
-                // Evening
-                if (shiftInfo.shiftName === "Evening" && now > InitialEveningShift && now <= eveningShiftStart) {
+                // ---------- Evening ----------
+                if (
+                    shiftInfo.shiftName === 'Evening' &&
+                    nowTs > InitialEveningShift &&
+                    nowTs <= eveningShiftStart
+                ) {
                     const result = await checkInCollections.insertOne(checkInInfo);
-                    return result.insertedId
-                        ? res.status(200).json({ message: 'Check-in successful' })
-                        : res.json({ message: 'Check-in failed' });
-
-                } else if (shiftInfo.shiftName === "Evening" && now > eveningShiftStart && now <= eveningShiftLateCount) {
-                    const lateCount = now - eveningShiftStartForLateCount;
+                    if (result.insertedId) {
+                        await seedAttendanceSnapshot(null);
+                        return res.status(200).json({ message: 'Check-in successful' });
+                    }
+                    return res.json({ message: 'Check-in failed' });
+                } else if (
+                    shiftInfo.shiftName === 'Evening' &&
+                    nowTs > eveningShiftStart &&
+                    nowTs <= eveningShiftLateCount
+                ) {
+                    const lateCount = nowTs - eveningShiftStartForLateCount;
                     const totalSeconds = Math.floor(lateCount / 1000);
                     const hours = Math.floor(totalSeconds / 3600) || 0;
                     const minutes = Math.floor((totalSeconds % 3600) / 60) || 0;
                     const lateCheckIn = `${hours}h ${minutes}m`;
 
-                    const result = await checkInCollections.insertOne({ ...checkInInfo, lateCheckIn });
-                    return result.insertedId
-                        ? res.status(200).json({ message: 'You are late today' })
-                        : res.json({ message: 'Check-in failed' });
+                    const result = await checkInCollections.insertOne({
+                        ...checkInInfo,
+                        lateCheckIn,
+                    });
+                    if (result.insertedId) {
+                        await seedAttendanceSnapshot(lateCheckIn);
+                        return res.status(200).json({ message: 'You are late today' });
+                    }
+                    return res.json({ message: 'Check-in failed' });
                 }
 
-                // None matched
+                // none matched
                 return res.json({ message: 'You are not eligible to check in at this time' });
             } catch (error) {
+                console.error('Check-in error:', error);
                 res.status(500).json({ message: 'Failed to check in', error: error.message });
             }
         });
@@ -3141,6 +3298,36 @@ async function run() {
                 return res.status(500).json({ message: "Server error" });
             }
         });
+        // ************************************************************************************************
+        // GET /admin/checkins/list?userEmail=...&date=YYYY-MM-DD&employeeEmail=optional
+        app.get('/admin/checkins/list', verifyToken, async (req, res) => {
+            try {
+                const { userEmail, date, employeeEmail } = req.query;
+
+                if (userEmail !== req.user.email) {
+                    return res.status(403).send({ message: "Forbidden Access" });
+                }
+                if (!userEmail || !date) {
+                    return res.status(400).json({ message: 'userEmail and date are required' });
+                }
+
+                const tz = 'Asia/Dhaka';
+                const m = moment.tz(date, ['YYYY-MM-DD', 'DD-MMM-YYYY'], true, tz);
+                if (!m.isValid()) {
+                    return res.status(400).json({ message: 'Invalid date' });
+                }
+
+                const dayKey = m.format('DD-MMM-YYYY'); // matches your checkInCollections `date`
+                const query = { date: dayKey };
+                if (employeeEmail) query.email = employeeEmail;
+
+                const docs = await checkInCollections.find(query).toArray();
+                res.json(docs || []);
+            } catch (e) {
+                res.status(500).json({ message: 'Failed to load check-ins', error: e.message });
+            }
+        });
+
         // ************************************************************************************************
         app.post("/notice/create", verifyToken, upload.single("file"), async (req, res) => {
             try {
