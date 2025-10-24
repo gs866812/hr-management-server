@@ -1808,53 +1808,130 @@ async function run() {
         app.put('/changeEarningStatus/:id', async (req, res) => {
             try {
                 const id = req.params.id;
-                const { amount, year, month } = req.body;
+                const { year, month, newStatus } = req.body;
 
-                const isID = await earningsCollections.findOne({
-                    _id: new ObjectId(id),
-                });
-
-                if (!isID) {
-                    return res
-                        .status(404)
-                        .json({ message: 'Earning data not found.' });
+                if (!['Paid', 'Unpaid'].includes(newStatus)) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            'Invalid status. Must be either "Paid" or "Unpaid".',
+                    });
                 }
 
-                // Update the earnings status
-                const result = await earningsCollections.updateOne(
-                    { _id: new ObjectId(id) },
-                    {
-                        $set: {
-                            status: 'Paid',
-                        },
-                    }
-                );
+                // Find earning record
+                const earning = await earningsCollections.findOne({
+                    _id: new ObjectId(id),
+                });
+                if (!earning) {
+                    return res.status(404).json({
+                        success: false,
+                        message: 'Earning record not found.',
+                    });
+                }
 
-                // If unpaid record for this month & year exists, decrement its total
-                const isUnpaid = await unpaidCollections.findOne({
+                const currentStatus = earning.status || 'Unpaid';
+
+                // ✅ Use the correct field from DB (fallbacks for safety)
+                const rawAmount = earning.convertedBdt ?? earning.amount ?? 0;
+                const parsedAmount = Number(rawAmount);
+                if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Invalid earning amount on record.',
+                    });
+                }
+
+                // Skip if no status change
+                if (currentStatus === newStatus) {
+                    return res.status(200).json({
+                        success: true,
+                        message: `Status already "${newStatus}", no change applied.`,
+                    });
+                }
+
+                // Ensure a summary doc exists for this (month, year)
+                let unpaidRecord = await unpaidCollections.findOne({
                     month,
                     year,
                 });
+                if (!unpaidRecord) {
+                    await unpaidCollections.insertOne({
+                        month,
+                        year,
+                        totalConvertedBdt: 0,
+                        status: 'Unpaid',
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    });
+                    unpaidRecord = await unpaidCollections.findOne({
+                        month,
+                        year,
+                    });
+                }
 
-                if (isUnpaid) {
+                // Compute delta for unpaid summary
+                let change = 0;
+                if (currentStatus === 'Unpaid' && newStatus === 'Paid') {
+                    // Paying now → decrease unpaid
+                    change = -parsedAmount;
+                } else if (currentStatus === 'Paid' && newStatus === 'Unpaid') {
+                    // Reverting to unpaid → increase unpaid
+                    change = parsedAmount;
+                }
+
+                // Apply change (if any)
+                if (change !== 0) {
                     await unpaidCollections.updateOne(
                         { month, year },
                         {
-                            $inc: {
-                                totalConvertedBdt: -parseFloat(amount),
-                            },
-                            $set: {
-                                status: 'Paid',
-                            },
+                            $inc: { totalConvertedBdt: change },
+                            $set: { updatedAt: new Date() },
                         }
                     );
                 }
 
-                res.send(result);
+                // Update the earning’s status
+                const updateResult = await earningsCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { status: newStatus, updatedAt: new Date() } }
+                );
+
+                // Re-read updated summary to set its status correctly
+                const updatedSummary = await unpaidCollections.findOne({
+                    month,
+                    year,
+                });
+                const newSummaryStatus =
+                    (updatedSummary?.totalConvertedBdt ?? 0) > 0
+                        ? 'Unpaid'
+                        : 'Paid';
+
+                await unpaidCollections.updateOne(
+                    { month, year },
+                    {
+                        $set: {
+                            status: newSummaryStatus,
+                            updatedAt: new Date(),
+                        },
+                    }
+                );
+
+                return res.status(200).json({
+                    success: true,
+                    message: `Earning status updated to "${newStatus}".`,
+                    changeApplied: change,
+                    updatedEarning: updateResult,
+                    unpaidSummary: await unpaidCollections.findOne({
+                        month,
+                        year,
+                    }),
+                });
             } catch (error) {
                 console.error('❌ Error updating earning status:', error);
-                res.status(500).json({
-                    message: 'Failed to update earning status',
+                return res.status(500).json({
+                    success: false,
+                    message:
+                        error.message || 'Failed to update earning status.',
                 });
             }
         });
