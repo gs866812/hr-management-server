@@ -4,6 +4,107 @@ const { client } = require('../lib/db.js');
 
 const loanRouter = express.Router();
 
+// New user
+loanRouter.post('/new-person', async (req, res) => {
+    try {
+        const { name, phone, address, description } = req.body;
+
+        if (!name || !phone) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    'Missing required fields: name and phone are required.',
+            });
+        }
+
+        const loanUserCollection = client
+            .db('hrManagement')
+            .collection('loanUser');
+
+        const existingUser = await loanUserCollection.findOne({
+            $or: [{ phone }, { name }],
+        });
+
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                message: 'A user with the same name or phone already exists.',
+            });
+        }
+
+        const result = await loanUserCollection.insertOne({
+            name: name.trim(),
+            phone: phone.trim(),
+            address: address?.trim() || '',
+            description: description?.trim() || '',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        });
+
+        if (!result.insertedId) {
+            throw new Error('Insert failed.');
+        }
+
+        return res.status(201).json({
+            success: true,
+            message: '✅ Person added successfully.',
+        });
+    } catch (error) {
+        console.error('Error adding person:', error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to add person.',
+        });
+    }
+});
+
+// get user info
+loanRouter.get('/get-person', async (req, res) => {
+    try {
+        const { query } = req.query;
+
+        if (!query || !query.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Search query is required (name or phone).',
+            });
+        }
+
+        const loanUserCollection = client
+            .db('hrManagement')
+            .collection('loanUser');
+
+        const person = await loanUserCollection
+            .find({
+                $or: [
+                    { phone: query },
+                    { name: { $regex: query, $options: 'i' } },
+                ],
+            })
+            .sort({ createdAt: -1 })
+            .limit(10)
+            .toArray();
+
+        if (!person || person.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'No matching person found.',
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: person,
+        });
+    } catch (error) {
+        console.error('Error fetching person:', error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to fetch person info.',
+        });
+    }
+});
+
 loanRouter.post('/new-loan', async (req, res) => {
     try {
         const { name, phone, address, amount, type, date } = req.body;
@@ -94,7 +195,7 @@ loanRouter.get('/get-loans', async (req, res) => {
         const [items, total, totalsAgg, overallTotalsAgg] = await Promise.all([
             loanCollection
                 .find(searchFilter)
-                .sort({ date: -1 })
+                .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(perPage)
                 .toArray(),
