@@ -1,39 +1,36 @@
-const express = require("express");
+const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const cookieParser = require("cookie-parser");
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const moment = require("moment-timezone");
-const nodemailer = require("nodemailer");
+const cookieParser = require('cookie-parser');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const moment = require('moment-timezone');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 const multer = require('multer');
-const { uploadToCloudinary } = require("./uploadPhoto");
+const { uploadToCloudinary } = require('./uploadPhoto');
 
-const XLSX = require("xlsx");
-const fs = require("fs");
-const path = require("path");
-
+const XLSX = require('xlsx');
+const fs = require('fs');
+const path = require('path');
+const router = require('./routes/index.js');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
 const PORT = process.env.PORT || 5000;
 
-
 // Middleware
-app.use(cors(
-    {
+app.use(
+    cors({
         origin: process.env.FRONTEND_URL,
         credentials: true,
-    }
-));
+    })
+);
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.json());
-
-
 
 const TOKEN_SECRET = process.env.TOKEN_SECRET;
 // ************************************************************************************************
@@ -46,27 +43,28 @@ const client = new MongoClient(uri, {
         deprecationErrors: true,
     },
 });
-app.get("/", (req, res) => {
-    res.send("Hello World!");
+app.get('/', (req, res) => {
+    res.send('Hello World!');
 });
 // ************************************************************************************************
 // Middleware to verify JWT
 const verifyToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
 
-
     if (!authHeader) {
-        return res.status(401).send({ message: "Access forbidden" });
+        return res.status(401).send({ message: 'Access forbidden' });
     }
 
-    const token = authHeader.split(" ")[1];
+    const token = authHeader.split(' ')[1];
     if (!token) {
-        return res.status(401).send({ message: "No authorization" });
+        return res.status(401).send({ message: 'No authorization' });
     }
 
     jwt.verify(token, TOKEN_SECRET, (err, decoded) => {
         if (err) {
-            return res.status(403).send({ message: "Forbidden: Invalid token" });
+            return res
+                .status(403)
+                .send({ message: 'Forbidden: Invalid token' });
         }
         req.user = decoded;
         next();
@@ -89,18 +87,15 @@ const verifyToken = (req, res, next) => {
 
 // REPLACE your existing /jwt with this hardening (after client/db are ready)
 
-
-
-
 // ************************************************************************************************
 // JWT token validation route
-app.post("/validate-token", (req, res) => {
-    const token = req.headers.authorization?.split(" ")[1]; // Extract token from 'Authorization' header
+app.post('/validate-token', (req, res) => {
+    const token = req.headers.authorization?.split(' ')[1]; // Extract token from 'Authorization' header
 
     if (!token) {
         return res
             .status(400)
-            .send({ success: false, message: "Forbidden access" });
+            .send({ success: false, message: 'Forbidden access' });
     }
 
     // Verify the token
@@ -108,7 +103,7 @@ app.post("/validate-token", (req, res) => {
         if (err) {
             return res
                 .status(401)
-                .send({ success: false, message: "Invalid or expired token" });
+                .send({ success: false, message: 'Invalid or expired token' });
         }
 
         // If token is valid, respond with the user data
@@ -129,47 +124,62 @@ async function run() {
     try {
         // ******************************************************************************************
         // ******************************************************************************************
-        const database = client.db("hrManagement");
-        const userCollections = database.collection("userList");
-        const expenseCollections = database.collection("expenseList");
-        const categoryCollections = database.collection("categoryList");
-        const localOrderCollections = database.collection("localOrderList");
-        const clientCollections = database.collection("clientList");
-        const hrBalanceCollections = database.collection("hrBalanceList");
-        const hrTransactionCollections = database.collection("hrTransactionList");
-        const mainBalanceCollections = database.collection("mainBalanceList");
-        const mainTransactionCollections = database.collection("mainTransactionList");
-        const employeeCollections = database.collection("employeeList");
-        const earningsCollections = database.collection("earningsList");
-        const shiftingCollections = database.collection("shiftingList");
-        const shareHoldersCollections = database.collection("shareHoldersList");
-        const profitShareCollections = database.collection("profitShareList");
-        const checkInCollections = database.collection("checkInList");
-        const checkOutCollections = database.collection("checkOutList");
-        const attendanceCollections = database.collection("attendanceList");
-        const OTStartCollections = database.collection("OTStartList");
-        const OTStopCollections = database.collection("OTStopList");
-        const PFAndSalaryCollections = database.collection("PFAndSalaryList");
-        const monthlyProfitCollections = database.collection("monthlyProfitList");
-        const unpaidCollections = database.collection("unpaidList");
-        const adminNotificationCollections = database.collection("adminNotificationList");
-        const employeeNotificationCollections = database.collection("employeeNotificationList");
-        const appliedLeaveCollections = database.collection("appliedLeaveList");
-        const leaveBalanceCollections = database.collection("leaveBalanceList");
-        const noticeBoardCollections = database.collection("noticeBoardList");
-        const leaveApplicationsCollections = database.collection("leaveApplications");
-        const salaryAndPFCollections = database.collection("salaryAndPFList");
-        const workingShiftCollections = database.collection("workingShiftList");
+        const database = client.db('hrManagement');
+        const userCollections = database.collection('userList');
+        const expenseCollections = database.collection('expenseList');
+        const categoryCollections = database.collection('categoryList');
+        const localOrderCollections = database.collection('localOrderList');
+        const clientCollections = database.collection('clientList');
+        const hrBalanceCollections = database.collection('hrBalanceList');
+        const hrTransactionCollections =
+            database.collection('hrTransactionList');
+        const mainBalanceCollections = database.collection('mainBalanceList');
+        const mainTransactionCollections = database.collection(
+            'mainTransactionList'
+        );
+        const employeeCollections = database.collection('employeeList');
+        const earningsCollections = database.collection('earningsList');
+        const shiftingCollections = database.collection('shiftingList');
+        const shareHoldersCollections = database.collection('shareHoldersList');
+        const profitShareCollections = database.collection('profitShareList');
+        const checkInCollections = database.collection('checkInList');
+        const checkOutCollections = database.collection('checkOutList');
+        const attendanceCollections = database.collection('attendanceList');
+        const OTStartCollections = database.collection('OTStartList');
+        const OTStopCollections = database.collection('OTStopList');
+        const PFAndSalaryCollections = database.collection('PFAndSalaryList');
+        const monthlyProfitCollections =
+            database.collection('monthlyProfitList');
+        const unpaidCollections = database.collection('unpaidList');
+        const adminNotificationCollections = database.collection(
+            'adminNotificationList'
+        );
+        const employeeNotificationCollections = database.collection(
+            'employeeNotificationList'
+        );
+        const appliedLeaveCollections = database.collection('appliedLeaveList');
+        const leaveBalanceCollections = database.collection('leaveBalanceList');
+        const noticeBoardCollections = database.collection('noticeBoardList');
+        const leaveApplicationsCollections =
+            database.collection('leaveApplications');
+        const salaryAndPFCollections = database.collection('salaryAndPFList');
+        const workingShiftCollections = database.collection('workingShiftList');
 
         // ******************store unpaid once********************************************************
-        
+
         // *******************************************************************************************
         // JWT token generation (must be inside run() so it can see employeeCollections)
-        app.post("/jwt", async (req, res) => {
+        app.post('/jwt', async (req, res) => {
             try {
                 const { email } = req.body || {};
-                if (!email) return res.status(400).send({ message: "Email is required" });
-                if (!TOKEN_SECRET) return res.status(500).send({ message: "Server misconfiguration (TOKEN_SECRET)" });
+                if (!email)
+                    return res
+                        .status(400)
+                        .send({ message: 'Email is required' });
+                if (!TOKEN_SECRET)
+                    return res.status(500).send({
+                        message: 'Server misconfiguration (TOKEN_SECRET)',
+                    });
 
                 const normEmail = String(email).trim().toLowerCase();
 
@@ -179,17 +189,20 @@ async function run() {
                     { projection: { status: 1 } }
                 );
 
-                if (emp && String(emp.status).toLowerCase() === "de-activate") {
+                if (emp && String(emp.status).toLowerCase() === 'de-activate') {
                     return res.status(403).send({
-                        message: "Your account has been deactivated. Please contact HR.",
+                        message:
+                            'Your account has been deactivated. Please contact HR.',
                     });
                 }
 
-                const token = jwt.sign({ email: normEmail }, TOKEN_SECRET, { expiresIn: "24h" });
+                const token = jwt.sign({ email: normEmail }, TOKEN_SECRET, {
+                    expiresIn: '24h',
+                });
                 res.send({ success: true, token });
             } catch (err) {
-                console.error("POST /jwt failed:", err?.message || err);
-                res.status(500).send({ message: "Failed to create token" });
+                console.error('POST /jwt failed:', err?.message || err);
+                res.status(500).send({ message: 'Failed to create token' });
             }
         });
 
@@ -221,7 +234,6 @@ async function run() {
         //     console.log('⚠️ No unpaid entries found.');
         // }
 
-
         // *******************************************************************************************
         //insert from another collection
         // async function initializeLeaveBalance() {
@@ -251,7 +263,6 @@ async function run() {
         //     }
         // }
 
-
         // initializeLeaveBalance();
 
         // ******************************************************************************************
@@ -268,25 +279,31 @@ async function run() {
 
         // ******************************************************************************************
         function normRole(role) {
-            return String(role || "").trim().toLowerCase();
+            return String(role || '')
+                .trim()
+                .toLowerCase();
         }
 
         async function ensureCanPostNotice(email) {
-            const u = await userCollections.findOne({ email }, { projection: { role: 1 } });
-            const allowed = new Set(["admin", "hr-admin", "developer"]); // roles in userCollections
+            const u = await userCollections.findOne(
+                { email },
+                { projection: { role: 1 } }
+            );
+            const allowed = new Set(['admin', 'hr-admin', 'developer']); // roles in userCollections
             if (!u || !allowed.has(normRole(u.role))) {
-                const err = new Error("Only Admin, HR-ADMIN, or Developer can post notices");
+                const err = new Error(
+                    'Only Admin, HR-ADMIN, or Developer can post notices'
+                );
                 err.status = 403;
                 throw err;
             }
         }
 
-
         // ******************************************************************************************
         async function uploadPdfBufferOrNull(file) {
             if (!file) return null;
-            if (file.mimetype !== "application/pdf") {
-                const err = new Error("Only PDF files are allowed");
+            if (file.mimetype !== 'application/pdf') {
+                const err = new Error('Only PDF files are allowed');
                 err.status = 400;
                 throw err;
             }
@@ -296,21 +313,42 @@ async function run() {
         }
 
         // ******************************************************************************************
-        async function emailAllEmployees({ title, body, fileUrl, effectiveDate, createdBy }) {
-            const cursor = employeeCollections.find({}, { projection: { email: 1, fullName: 1 } });
+        async function emailAllEmployees({
+            title,
+            body,
+            fileUrl,
+            effectiveDate,
+            createdBy,
+        }) {
+            const cursor = employeeCollections.find(
+                {},
+                { projection: { email: 1, fullName: 1 } }
+            );
             const emails = [];
-            await cursor.forEach((doc) => { if (doc?.email) emails.push(doc.email); });
+            await cursor.forEach((doc) => {
+                if (doc?.email) emails.push(doc.email);
+            });
             if (!emails.length) return;
 
             const subject = `Notice: ${title}`;
             const html = `
     <div style="font-family:sans-serif;">
       <h2 style="margin:0 0 8px;">${title}</h2>
-      <div style="color:#555;margin:0 0 12px;">Effective: ${effectiveDate ? new Date(effectiveDate).toDateString() : "—"}</div>
-      <div style="white-space:pre-wrap;margin-bottom:12px;">${(body || "").replace(/\n/g, "<br/>")}</div>
-      ${fileUrl ? `<p><a href="${fileUrl}" target="_blank">View / Download PDF</a></p>` : ""}
+      <div style="color:#555;margin:0 0 12px;">Effective: ${
+          effectiveDate ? new Date(effectiveDate).toDateString() : '—'
+      }</div>
+      <div style="white-space:pre-wrap;margin-bottom:12px;">${(
+          body || ''
+      ).replace(/\n/g, '<br/>')}</div>
+      ${
+          fileUrl
+              ? `<p><a href="${fileUrl}" target="_blank">View / Download PDF</a></p>`
+              : ''
+      }
       <hr/>
-      <small>Posted by ${createdBy?.fullName || createdBy?.email || "Admin"}</small>
+      <small>Posted by ${
+          createdBy?.fullName || createdBy?.email || 'Admin'
+      }</small>
     </div>
   `;
 
@@ -331,64 +369,79 @@ async function run() {
         // ******************************************************************************************
         // Helper function to determine role based on designation
         function roleForDesignation(designation) {
-            const t = (designation || "").toString().trim().toLowerCase();
+            const t = (designation || '').toString().trim().toLowerCase();
             // Explicit mappings (case/spacing tolerant)
-            if (t === "admin") return "Admin";
-            if (t === "hr-admin" || t === "hr admin" || t === "hr") return "HR-ADMIN";
-            if (t === "team leader" || t === "team-leader" || t === "tl") return "teamLeader";
-            if (t === "developer" || t.includes("developer")) return "Developer";
-            if (t === "employee" || t.includes("employee")) return "employee";
+            if (t === 'admin') return 'Admin';
+            if (t === 'hr-admin' || t === 'hr admin' || t === 'hr')
+                return 'HR-ADMIN';
+            if (t === 'team leader' || t === 'team-leader' || t === 'tl')
+                return 'teamLeader';
+            if (t === 'developer' || t.includes('developer'))
+                return 'Developer';
+            if (t === 'employee' || t.includes('employee')) return 'employee';
             // Everyone else is a normal employee
-            return "employee";
+            return 'employee';
         }
 
         // ******************************************************************************************
         // put this near your other helpers (after ensureCanPostNotice)
-        function norm(role) { return String(role || "").trim().toLowerCase(); }
+        function norm(role) {
+            return String(role || '')
+                .trim()
+                .toLowerCase();
+        }
         async function ensureCanManageEmployees(email) {
-            const u = await userCollections.findOne({ email }, { projection: { role: 1 } });
-            const allowed = new Set(["admin", "hr-admin", "developer"]);
+            const u = await userCollections.findOne(
+                { email },
+                { projection: { role: 1 } }
+            );
+            const allowed = new Set(['admin', 'hr-admin', 'developer']);
             if (!u || !allowed.has(norm(u.role))) {
-                const err = new Error("Only Admin, HR-ADMIN, or Developer can change employee status");
+                const err = new Error(
+                    'Only Admin, HR-ADMIN, or Developer can change employee status'
+                );
                 err.status = 403;
                 throw err;
             }
         }
 
         // ******************************************************************************************
-        const date = moment(new Date()).format("DD-MMM-YYYY");
+        const date = moment(new Date()).format('DD-MMM-YYYY');
 
         // *******************************************************************************************
-        app.post("/addExpense", async (req, res) => {
+        app.post('/addExpense', async (req, res) => {
             try {
                 const expenseData = req.body;
                 const month = moment(expenseData.expenseDate).format('MMMM');
                 const year = moment(expenseData.expenseDate).format('YYYY');
 
-
                 const mail = req.body.userMail;
-                const existingCategory = await categoryCollections.findOne({ expenseCategory: expenseData.expenseCategory });
+                const existingCategory = await categoryCollections.findOne({
+                    expenseCategory: expenseData.expenseCategory,
+                });
 
                 if (!existingCategory) {
-                    await categoryCollections.insertOne({ expenseCategory: expenseData.expenseCategory });
+                    await categoryCollections.insertOne({
+                        expenseCategory: expenseData.expenseCategory,
+                    });
                 }
                 const availableBalance = await hrBalanceCollections.findOne();
-                const availableMainBalance = await mainBalanceCollections.findOne();
+                const availableMainBalance =
+                    await mainBalanceCollections.findOne();
                 const expenseBalance = expenseData.expenseAmount;
 
-
-                const findMonthInMonthlyProfit = await monthlyProfitCollections.findOne({ month, year });
+                const findMonthInMonthlyProfit =
+                    await monthlyProfitCollections.findOne({ month, year });
                 if (findMonthInMonthlyProfit) {
                     // If month already exists, update the earnings and profit
                     await monthlyProfitCollections.updateOne(
                         { month, year },
                         {
                             $inc: {
-
                                 expense: expenseBalance,
                                 profit: -expenseBalance,
                                 remaining: -expenseBalance,
-                            }
+                            },
                         }
                     );
                 } else {
@@ -407,32 +460,46 @@ async function run() {
                 }
 
                 if (availableMainBalance.mainBalance >= expenseBalance) {
-                    const addExpense = await expenseCollections.insertOne(expenseData);
+                    const addExpense = await expenseCollections.insertOne(
+                        expenseData
+                    );
                     await mainBalanceCollections.updateOne(
                         {},
                         {
-                            $inc: { mainBalance: - expenseBalance }
-                        });
-                    await mainTransactionCollections.insertOne({ amount: expenseBalance, note: expenseData.expenseNote, date, type: "Expense" });
+                            $inc: { mainBalance: -expenseBalance },
+                        }
+                    );
+                    await mainTransactionCollections.insertOne({
+                        amount: expenseBalance,
+                        note: expenseData.expenseNote,
+                        date,
+                        type: 'Expense',
+                    });
                     res.send(addExpense);
                 } else {
                     res.json('Insufficient balance');
                 }
-
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to add expense', error: error.message });
+                res.status(500).json({
+                    message: 'Failed to add expense',
+                    error: error.message,
+                });
             }
         });
         // ************************************************************************************************
-        app.post("/addHrBalance", async (req, res) => {
+        app.post('/addHrBalance', async (req, res) => {
             try {
                 const { parseValue, note } = req.body;
 
                 const availableBalance = await mainBalanceCollections.findOne();
 
                 if (availableBalance.mainBalance >= parseValue) {
-                    await hrTransactionCollections.insertOne({ value: parseValue, note, date, type: "In" });
+                    await hrTransactionCollections.insertOne({
+                        value: parseValue,
+                        note,
+                        date,
+                        type: 'In',
+                    });
 
                     let existingBalance = await hrBalanceCollections.findOne();
 
@@ -440,36 +507,46 @@ async function run() {
                         await hrBalanceCollections.updateOne(
                             {},
                             {
-                                $inc: { balance: parseValue }
-                            });
+                                $inc: { balance: parseValue },
+                            }
+                        );
                     } else {
                         // Insert a new document if no balance exists
-                        await hrBalanceCollections.insertOne({ balance: parseValue });
+                        await hrBalanceCollections.insertOne({
+                            balance: parseValue,
+                        });
                     }
 
-                    // deduct the amount from main balance 
+                    // deduct the amount from main balance
                     await mainBalanceCollections.updateOne(
                         {},
                         {
-                            $inc: { mainBalance: -parseValue }
-                        });
+                            $inc: { mainBalance: -parseValue },
+                        }
+                    );
 
-                    res.status(200).json({ message: "success" });
+                    res.status(200).json({ message: 'success' });
                 } else {
-                    res.json({ message: "Not enough funds" });
+                    res.json({ message: 'Not enough funds' });
                 }
-
-
             } catch (error) {
-                res.status(500).json({ message: "Failed to add balance", error: error.message });
+                res.status(500).json({
+                    message: 'Failed to add balance',
+                    error: error.message,
+                });
             }
         });
 
         // ************************************************************************************************
-        app.post("/addMainBalance", async (req, res) => {
+        app.post('/addMainBalance', async (req, res) => {
             try {
                 const { parseValue, note } = req.body; // Assuming amount is sent in the request body
-                await mainTransactionCollections.insertOne({ amount: parseValue, note, date, type: "Credit" });
+                await mainTransactionCollections.insertOne({
+                    amount: parseValue,
+                    note,
+                    date,
+                    type: 'Credit',
+                });
 
                 let existingBalance = await mainBalanceCollections.findOne();
 
@@ -478,20 +555,26 @@ async function run() {
                     await mainBalanceCollections.updateOne(
                         {},
                         {
-                            $inc: { mainBalance: parseValue }
-                        });
+                            $inc: { mainBalance: parseValue },
+                        }
+                    );
                 } else {
                     // Insert a new document if no balance exists
-                    await mainBalanceCollections.insertOne({ mainBalance: parseValue });
+                    await mainBalanceCollections.insertOne({
+                        mainBalance: parseValue,
+                    });
                 }
 
-                res.status(200).json({ message: "Balance added successfully" });
+                res.status(200).json({ message: 'Balance added successfully' });
             } catch (error) {
-                res.status(500).json({ message: "Failed to add balance", error: error.message });
+                res.status(500).json({
+                    message: 'Failed to add balance',
+                    error: error.message,
+                });
             }
         });
         // ************************************************************************************************
-        app.post("/createLocalOrder", async (req, res) => {
+        app.post('/createLocalOrder', async (req, res) => {
             try {
                 const orderData = req.body;
                 const id = req.body.clientID;
@@ -511,7 +594,10 @@ async function run() {
 
                 res.send(addOrder);
             } catch (error) {
-                res.status(500).json({ message: 'Failed to add expense', error: error.message });
+                res.status(500).json({
+                    message: 'Failed to add expense',
+                    error: error.message,
+                });
             }
         });
 
@@ -524,19 +610,20 @@ async function run() {
 
                 await userCollections.insertOne({
                     email: email,
-                    role: "employee",
-                    userName: "",
-                    profilePic: "",
+                    role: 'employee',
+                    userName: '',
+                    profilePic: '',
                 });
-                const result = await employeeCollections.insertOne(employeeData);
-
+                const result = await employeeCollections.insertOne(
+                    employeeData
+                );
 
                 res.send(result);
             } catch (error) {
                 res.status(500).json({
                     success: false,
                     message: 'Failed to register employee',
-                    error: error.message
+                    error: error.message,
                 });
             }
         });
@@ -546,13 +633,18 @@ async function run() {
                 const earningsData = req.body;
                 const { month, status } = req.body;
                 const date = new Date();
-                const year = moment(date).format("YYYY");
+                const year = moment(date).format('YYYY');
                 const clientID = req.body.clientId;
-                const fullData = { ...earningsData, date: moment(date).format("DD-MM-YYYY") };
+                const fullData = {
+                    ...earningsData,
+                    date: moment(date).format('DD-MM-YYYY'),
+                };
                 const earningsAmount = req.body.convertedBdt;
 
                 if (status === 'Unpaid') {
-                    const findMonth = await unpaidCollections.findOne({ month });
+                    const findMonth = await unpaidCollections.findOne({
+                        month,
+                    });
                     if (findMonth) {
                         // If month already exists, update the totalConvertedBdt
                         await unpaidCollections.updateOne(
@@ -565,12 +657,13 @@ async function run() {
                             month,
                             totalConvertedBdt: earningsAmount,
                             status: 'Unpaid',
-                            year
+                            year,
                         });
                     }
-                };
+                }
 
-                const findMonthInMonthlyProfit = await monthlyProfitCollections.findOne({ month, year });
+                const findMonthInMonthlyProfit =
+                    await monthlyProfitCollections.findOne({ month, year });
 
                 if (findMonthInMonthlyProfit) {
                     // If month already exists, update the earnings and profit
@@ -581,7 +674,7 @@ async function run() {
                                 earnings: earningsAmount,
                                 profit: earningsAmount,
                                 remaining: earningsAmount,
-                            }
+                            },
                         }
                     );
                 } else {
@@ -597,29 +690,27 @@ async function run() {
                     });
                 }
 
-
-
                 const result = await earningsCollections.insertOne(fullData);
-
 
                 // add earnings to main balance
                 await mainBalanceCollections.updateOne(
                     {},
                     {
-                        $inc: { mainBalance: earningsAmount }
-                    });
+                        $inc: { mainBalance: earningsAmount },
+                    }
+                );
                 // add earnings to main transactions
                 await mainTransactionCollections.insertOne({
                     amount: earningsAmount,
                     note: `Earnings from ${clientID}`,
                     date,
-                    type: "Earning"
+                    type: 'Earning',
                 });
                 // add earnings to client history
                 await clientCollections.updateOne(
                     { clientID: clientID },
                     {
-                        $push: { paymentHistory: fullData }
+                        $push: { paymentHistory: fullData },
                     }
                 );
 
@@ -628,7 +719,7 @@ async function run() {
                 res.status(500).json({
                     success: false,
                     message: 'Failed to add earnings',
-                    error: error.message
+                    error: error.message,
                 });
             }
         });
@@ -638,10 +729,14 @@ async function run() {
                 const { clientId, country } = req.body;
 
                 if (!clientId || !country) {
-                    return res.status(400).json({ message: 'Client ID and Country are required.' });
+                    return res.status(400).json({
+                        message: 'Client ID and Country are required.',
+                    });
                 }
 
-                const existingClient = await clientCollections.findOne({ clientID: clientId });
+                const existingClient = await clientCollections.findOne({
+                    clientID: clientId,
+                });
 
                 if (existingClient) {
                     return res.json({ message: 'This ID already exists' });
@@ -654,8 +749,10 @@ async function run() {
                     paymentHistory: [],
                 });
 
-                res.status(201).json({ message: 'Client added successfully', insertedId: result.insertedId });
-
+                res.status(201).json({
+                    message: 'Client added successfully',
+                    insertedId: result.insertedId,
+                });
             } catch (error) {
                 res.status(500).json({ message: 'Internal server error' });
             }
@@ -668,20 +765,22 @@ async function run() {
                 const { employees, shift, OTFor } = req.body;
 
                 let entryTime;
-                if (shift === "Morning") {
-                    entryTime = "06:00 AM";
-                } else if (shift === "Evening") {
-                    entryTime = "02:00 PM";
-                } else if (shift === "Night") {
-                    entryTime = "10:00 PM";
-                } else if (shift === "General") {
-                    entryTime = "10:00 AM";
-                } else if (shift === "OT list") {
-                    entryTime = "10:00 AM"; // or assign custom time for OT list
+                if (shift === 'Morning') {
+                    entryTime = '06:00 AM';
+                } else if (shift === 'Evening') {
+                    entryTime = '02:00 PM';
+                } else if (shift === 'Night') {
+                    entryTime = '10:00 PM';
+                } else if (shift === 'General') {
+                    entryTime = '10:00 AM';
+                } else if (shift === 'OT list') {
+                    entryTime = '10:00 AM'; // or assign custom time for OT list
                 }
 
                 if (!employees?.length || !shift) {
-                    return res.status(400).send({ message: 'Invalid input data' });
+                    return res
+                        .status(400)
+                        .send({ message: 'Invalid input data' });
                 }
 
                 const inserted = [];
@@ -689,10 +788,12 @@ async function run() {
                 const skipped = [];
 
                 for (const emp of employees) {
-                    if (shift === "OT list") {
+                    if (shift === 'OT list') {
                         // For OT list, allow duplicate entry with same email + OT marker
-                        const otEmailKey = emp.email + "_OT";
-                        const alreadyInOT = await shiftingCollections.findOne({ email: otEmailKey });
+                        const otEmailKey = emp.email + '_OT';
+                        const alreadyInOT = await shiftingCollections.findOne({
+                            email: otEmailKey,
+                        });
 
                         if (!alreadyInOT) {
                             await shiftingCollections.insertOne({
@@ -707,9 +808,10 @@ async function run() {
                         } else {
                             skipped.push(emp);
                         }
-
                     } else {
-                        const existing = await shiftingCollections.findOne({ email: emp.email });
+                        const existing = await shiftingCollections.findOne({
+                            email: emp.email,
+                        });
 
                         if (!existing) {
                             await shiftingCollections.insertOne({
@@ -726,7 +828,7 @@ async function run() {
                                     $set: {
                                         shiftName: shift,
                                         entryTime,
-                                    }
+                                    },
                                 }
                             );
                             updated.push(emp);
@@ -741,11 +843,10 @@ async function run() {
                     insertedCount: inserted.length,
                     updatedCount: updated.length,
                     skippedCount: skipped.length,
-                    insertedNames: inserted.map(e => e.fullName),
-                    updatedNames: updated.map(e => e.fullName),
-                    skippedNames: skipped.map(e => e.fullName),
+                    insertedNames: inserted.map((e) => e.fullName),
+                    updatedNames: updated.map((e) => e.fullName),
+                    skippedNames: skipped.map((e) => e.fullName),
                 });
-
             } catch (error) {
                 res.status(500).json({ message: 'Failed to assign shift' });
             }
@@ -900,10 +1001,14 @@ async function run() {
                     nowTs >= initialMorningShift &&
                     nowTs <= morningShiftStart
                 ) {
-                    const result = await checkInCollections.insertOne(checkInInfo);
+                    const result = await checkInCollections.insertOne(
+                        checkInInfo
+                    );
                     if (result.insertedId) {
                         await seedAttendanceSnapshot(null);
-                        return res.status(200).json({ message: 'Check-in successful' });
+                        return res
+                            .status(200)
+                            .json({ message: 'Check-in successful' });
                     }
                     return res.json({ message: 'Check-in failed' });
                 } else if (
@@ -923,7 +1028,9 @@ async function run() {
                     });
                     if (result.insertedId) {
                         await seedAttendanceSnapshot(lateCheckIn);
-                        return res.status(200).json({ message: 'You are late today' });
+                        return res
+                            .status(200)
+                            .json({ message: 'You are late today' });
                     }
                     return res.json({ message: 'Check-in failed' });
                 }
@@ -934,10 +1041,14 @@ async function run() {
                     nowTs >= initialGeneralShift &&
                     nowTs <= generalShiftStart
                 ) {
-                    const result = await checkInCollections.insertOne(checkInInfo);
+                    const result = await checkInCollections.insertOne(
+                        checkInInfo
+                    );
                     if (result.insertedId) {
                         await seedAttendanceSnapshot(null);
-                        return res.status(200).json({ message: 'Check-in successful' });
+                        return res
+                            .status(200)
+                            .json({ message: 'Check-in successful' });
                     }
                     return res.json({ message: 'Check-in failed' });
                 } else if (
@@ -957,7 +1068,9 @@ async function run() {
                     });
                     if (result.insertedId) {
                         await seedAttendanceSnapshot(lateCheckIn);
-                        return res.status(200).json({ message: 'You are late today' });
+                        return res
+                            .status(200)
+                            .json({ message: 'You are late today' });
                     }
                     return res.json({ message: 'Check-in failed' });
                 }
@@ -968,10 +1081,14 @@ async function run() {
                     nowTs > InitialEveningShift &&
                     nowTs <= eveningShiftStart
                 ) {
-                    const result = await checkInCollections.insertOne(checkInInfo);
+                    const result = await checkInCollections.insertOne(
+                        checkInInfo
+                    );
                     if (result.insertedId) {
                         await seedAttendanceSnapshot(null);
-                        return res.status(200).json({ message: 'Check-in successful' });
+                        return res
+                            .status(200)
+                            .json({ message: 'Check-in successful' });
                     }
                     return res.json({ message: 'Check-in failed' });
                 } else if (
@@ -991,21 +1108,25 @@ async function run() {
                     });
                     if (result.insertedId) {
                         await seedAttendanceSnapshot(lateCheckIn);
-                        return res.status(200).json({ message: 'You are late today' });
+                        return res
+                            .status(200)
+                            .json({ message: 'You are late today' });
                     }
                     return res.json({ message: 'Check-in failed' });
                 }
 
                 // none matched
-                return res.json({ message: 'You are not eligible to check in at this time' });
+                return res.json({
+                    message: 'You are not eligible to check in at this time',
+                });
             } catch (error) {
                 console.error('Check-in error:', error);
-                res.status(500).json({ message: 'Failed to check in', error: error.message });
+                res.status(500).json({
+                    message: 'Failed to check in',
+                    error: error.message,
+                });
             }
         });
-
-
-
 
         // ************************************************************************************************
         app.post('/employee/checkOut', async (req, res) => {
@@ -1013,10 +1134,19 @@ async function run() {
             const email = req.body.email; // Assuming email is part of checkOutInfo
             const date = req.body.date; // Assuming date is part of checkOutInfo
 
-            const checkInInfo = await checkInCollections.findOne({ email, date });
+            const checkInInfo = await checkInCollections.findOne({
+                email,
+                date,
+            });
             const employee = await employeeCollections.findOne({ email });
-            const isAttendance = await attendanceCollections.findOne({ email, date });
-            const startOTInfo = await OTStartCollections.findOne({ email, date });
+            const isAttendance = await attendanceCollections.findOne({
+                email,
+                date,
+            });
+            const startOTInfo = await OTStartCollections.findOne({
+                email,
+                date,
+            });
             const stopOTInfo = await OTStopCollections.findOne({ email, date });
 
             // Update attendance collection
@@ -1038,9 +1168,7 @@ async function run() {
             const otMinutes = Math.floor((otTotalSeconds % 3600) / 60) || 0;
             const displayOTHour = `${otHours}h ${otMinutes}m`; // Format OT time as "Xh Ym"
 
-
             try {
-
                 // Check if the user already check out today
                 const existingCheckOut = await checkOutCollections.findOne({
                     email,
@@ -1051,10 +1179,11 @@ async function run() {
                     return res.json({ message: 'Already check out' });
                 }
 
-                const result = await checkOutCollections.insertOne(checkOutInfo);
+                const result = await checkOutCollections.insertOne(
+                    checkOutInfo
+                );
 
                 if (result.insertedId) {
-
                     const attendanceData = {
                         email: email,
                         fullName: employee.fullName, // Assuming fullName is part of employee document
@@ -1091,52 +1220,83 @@ async function run() {
                                     checkOutTime: checkOutInfo.checkOutTime,
                                     workingDisplay,
                                     workingHourInSeconds: calculateTime, // Store the total milliseconds
-                                    lateCheckIn: checkInInfo.lateCheckIn || false, // Preserve lateCheckIn status
-                                }
+                                    lateCheckIn:
+                                        checkInInfo.lateCheckIn || false, // Preserve lateCheckIn status
+                                },
                             }
                         );
                     } else {
                         await attendanceCollections.insertOne(attendanceData);
-                        res.status(200).json({ message: 'Check-out successful' });
+                        res.status(200).json({
+                            message: 'Check-out successful',
+                        });
                     }
-
                 } else {
                     res.status(500).json({ message: 'Check-out failed' });
                 }
             } catch (error) {
-                res.status(500).json({ message: 'Failed to check out', error: error.message });
+                res.status(500).json({
+                    message: 'Failed to check out',
+                    error: error.message,
+                });
             }
         });
         // ************************************************************************************************
         app.post('/employee/startOverTime', async (req, res) => {
-            const { date, month, startingOverTime, displayTime, signInTime, email } = req.body; // Assuming email is part of checkOutInfo
+            const {
+                date,
+                month,
+                startingOverTime,
+                displayTime,
+                signInTime,
+                email,
+            } = req.body; // Assuming email is part of checkOutInfo
 
             try {
-
-                const isInOT = await shiftingCollections.findOne({ actualEmail: email, shiftName: "OT list" });
+                const isInOT = await shiftingCollections.findOne({
+                    actualEmail: email,
+                    shiftName: 'OT list',
+                });
                 if (!isInOT) {
                     return res.json({ message: 'You are not in OT list' });
                 }
 
-
-                const result = await OTStartCollections.insertOne({ date, month, startingOverTime, displayTime, signInTime, email, OTFor: isInOT.OTFor });
+                const result = await OTStartCollections.insertOne({
+                    date,
+                    month,
+                    startingOverTime,
+                    displayTime,
+                    signInTime,
+                    email,
+                    OTFor: isInOT.OTFor,
+                });
 
                 if (result.insertedId) {
                     res.status(200).json({ message: 'Over time started' });
                 } else {
-                    res.status(500).json({ message: 'Over time started failed' });
+                    res.status(500).json({
+                        message: 'Over time started failed',
+                    });
                 }
             } catch (error) {
-                res.status(500).json({ message: 'Failed to start OT', error: error.message });
+                res.status(500).json({
+                    message: 'Failed to start OT',
+                    error: error.message,
+                });
             }
         });
         // ************************************************************************************************
         app.post('/employee/stopOverTime', async (req, res) => {
             const { date, month, OTStopTime, displayTime, email } = req.body;
 
-
-            const startOTInfo = await OTStartCollections.findOne({ email, date });
-            const isAttendance = await attendanceCollections.findOne({ email, date });
+            const startOTInfo = await OTStartCollections.findOne({
+                email,
+                date,
+            });
+            const isAttendance = await attendanceCollections.findOne({
+                email,
+                date,
+            });
 
             // Update attendance collection
             const otStartTime = startOTInfo.startingOverTime;
@@ -1148,9 +1308,7 @@ async function run() {
             // const seconds = totalSeconds % 60;
             const displayOTHour = `${hours}h ${minutes}m`;
 
-
             try {
-
                 // Check if the user already check out today
                 const existingOT = await OTStopCollections.findOne({
                     email,
@@ -1161,10 +1319,15 @@ async function run() {
                     return res.json({ message: 'Already stop OT' });
                 }
 
-                const result = await OTStopCollections.insertOne({ date, month, OTStopTime, displayTime, email });
+                const result = await OTStopCollections.insertOne({
+                    date,
+                    month,
+                    OTStopTime,
+                    displayTime,
+                    email,
+                });
 
                 if (result.insertedId) {
-
                     const OTCountingData = {
                         email: email,
                         date,
@@ -1182,7 +1345,7 @@ async function run() {
                                     otStopTime: OTStopTime,
                                     displayOTHour,
                                     totalOTInSeconds: calculateOTTime, // Update total OT in seconds
-                                }
+                                },
                             }
                         );
                         res.status(200).json({ message: 'OT stop successful' });
@@ -1190,41 +1353,55 @@ async function run() {
                         await attendanceCollections.insertOne(OTCountingData);
                         res.status(200).json({ message: 'OT stop successful' });
                     }
-                    await shiftingCollections.deleteOne({ actualEmail: email, shiftName: "OT list" });
-
+                    await shiftingCollections.deleteOne({
+                        actualEmail: email,
+                        shiftName: 'OT list',
+                    });
                 } else {
                     res.status(500).json({ message: 'OT stop failed' });
                 }
             } catch (error) {
-                res.status(500).json({ message: 'Failed to stop OT', error: error.message });
+                res.status(500).json({
+                    message: 'Failed to stop OT',
+                    error: error.message,
+                });
             }
         });
         // ************************************************************************************************
-        app.post("/appliedLeave", async (req, res) => {
-
+        app.post('/appliedLeave', async (req, res) => {
             try {
                 const leaveData = req.body;
                 const { email, totalDays } = leaveData;
                 // check if the user has remaining leave balance
-                const leaveBalance = await leaveBalanceCollections.findOne({ email });
+                const leaveBalance = await leaveBalanceCollections.findOne({
+                    email,
+                });
                 if (leaveBalance.casualLeave < totalDays) {
-                    return res.json({ message: 'You have no remaining leave balance' });
+                    return res.json({
+                        message: 'You have no remaining leave balance',
+                    });
                 }
 
-
                 // Check if the user already has a pending leave request
-                const existingLeave = await appliedLeaveCollections.findOne({ email, status: "Pending" });
+                const existingLeave = await appliedLeaveCollections.findOne({
+                    email,
+                    status: 'Pending',
+                });
 
                 if (existingLeave) {
-                    return res.json({ message: 'You already have a pending leave request' });
+                    return res.json({
+                        message: 'You already have a pending leave request',
+                    });
                 }
 
                 // Insert the new leave request
-                const result = await appliedLeaveCollections.insertOne(leaveData);
+                const result = await appliedLeaveCollections.insertOne(
+                    leaveData
+                );
                 await adminNotificationCollections.insertOne({
                     notification: `New leave request received`,
                     email: email,
-                    link: "/appliedLeave"
+                    link: '/appliedLeave',
                 });
 
                 if (result.insertedId) {
@@ -1233,150 +1410,182 @@ async function run() {
                     res.json({ message: 'Failed to submit leave request' });
                 }
             } catch (error) {
-                res.json({ message: 'Failed to submit leave request', error: error.message });
+                res.json({
+                    message: 'Failed to submit leave request',
+                    error: error.message,
+                });
             }
         });
         // ************************************************************************************************
         // ************************************************************************************************
 
-
-
-
-
-
-
-        app.put("/orderStatusChange/:orderId", async (req, res) => {
+        app.put('/orderStatusChange/:orderId', async (req, res) => {
             try {
                 const id = req.params.orderId;
 
                 // Check if the order exists
-                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                const isID = await localOrderCollections.findOne({
+                    _id: new ObjectId(id),
+                });
 
                 if (!isID) {
-                    return res.status(404).json({ message: "Order not found" });
+                    return res.status(404).json({ message: 'Order not found' });
                 }
 
                 if (isID.isLocked) {
-                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
+                    return res.status(423).json({
+                        message:
+                            'Order is locked. Extend the deadline to reopen.',
+                    });
                 }
 
                 // Update the order status to "In-progress"
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
-                    { $set: { orderStatus: "In-progress" } }
+                    { $set: { orderStatus: 'In-progress' } }
                 );
 
                 res.send(result);
             } catch (error) {
-                res.status(500).json({ message: "Failed to update order status" });
+                res.status(500).json({
+                    message: 'Failed to update order status',
+                });
             }
         });
         // ************************************************************************************************
-        app.put("/orderStatusDelivered/:orderId", async (req, res) => {
+        app.put('/orderStatusDelivered/:orderId', async (req, res) => {
             try {
                 const id = req.params.orderId;
 
-                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                const isID = await localOrderCollections.findOne({
+                    _id: new ObjectId(id),
+                });
                 if (!isID) {
-                    return res.status(404).json({ message: "Order not found" });
+                    return res.status(404).json({ message: 'Order not found' });
                 }
                 if (isID.isLocked) {
-                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
+                    return res.status(423).json({
+                        message:
+                            'Order is locked. Extend the deadline to reopen.',
+                    });
                 }
 
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
-                    { $set: { orderStatus: "Delivered" } }
+                    { $set: { orderStatus: 'Delivered' } }
                 );
 
                 res.send(result);
             } catch (error) {
-                res.status(500).json({ message: "Failed to update order status" });
+                res.status(500).json({
+                    message: 'Failed to update order status',
+                });
             }
         });
 
         // *****************************************************************************************
-        app.put("/modifyOrderToInitial/:orderId", async (req, res) => {
+        app.put('/modifyOrderToInitial/:orderId', async (req, res) => {
             try {
                 const id = req.params.orderId;
 
-                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                const isID = await localOrderCollections.findOne({
+                    _id: new ObjectId(id),
+                });
                 if (!isID) {
-                    return res.status(404).json({ message: "Order not found" });
+                    return res.status(404).json({ message: 'Order not found' });
                 }
                 if (isID.isLocked) {
-                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
+                    return res.status(423).json({
+                        message:
+                            'Order is locked. Extend the deadline to reopen.',
+                    });
                 }
 
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
-                    { $set: { orderStatus: "Reviewing" } }
+                    { $set: { orderStatus: 'Reviewing' } }
                 );
 
                 res.send(result);
             } catch (error) {
-                res.status(500).json({ message: "Failed to update order status" });
+                res.status(500).json({
+                    message: 'Failed to update order status',
+                });
             }
         });
 
         // *****************************************************************************************
-        app.put("/orderStatusQC/:orderId", async (req, res) => {
+        app.put('/orderStatusQC/:orderId', async (req, res) => {
             try {
                 const id = req.params.orderId;
 
-                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                const isID = await localOrderCollections.findOne({
+                    _id: new ObjectId(id),
+                });
                 if (!isID) {
-                    return res.status(404).json({ message: "Order not found" });
+                    return res.status(404).json({ message: 'Order not found' });
                 }
                 if (isID.isLocked) {
-                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
+                    return res.status(423).json({
+                        message:
+                            'Order is locked. Extend the deadline to reopen.',
+                    });
                 }
 
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
-                    { $set: { orderStatus: "Ready to QC" } }
+                    { $set: { orderStatus: 'Ready to QC' } }
                 );
 
                 res.send(result);
             } catch (error) {
-                res.status(500).json({ message: "Failed to update order status" });
+                res.status(500).json({
+                    message: 'Failed to update order status',
+                });
             }
         });
 
         // *****************************************************************************************
-        app.put("/orderStatusHold/:orderId", async (req, res) => {
+        app.put('/orderStatusHold/:orderId', async (req, res) => {
             try {
                 const id = req.params.orderId;
                 const { completeTime, lastUpdated } = req.body;
 
-                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                const isID = await localOrderCollections.findOne({
+                    _id: new ObjectId(id),
+                });
                 if (!isID) {
-                    return res.status(404).json({ message: "Order not found" });
+                    return res.status(404).json({ message: 'Order not found' });
                 }
                 if (isID.isLocked) {
-                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
+                    return res.status(423).json({
+                        message:
+                            'Order is locked. Extend the deadline to reopen.',
+                    });
                 }
 
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
                     {
                         $set: {
-                            orderStatus: "Hold",
+                            orderStatus: 'Hold',
                             completeTime,
                             lastUpdated,
-                        }
+                        },
                     }
                 );
 
                 res.send(result);
             } catch (error) {
-                res.status(500).json({ message: "Failed to update order status" });
+                res.status(500).json({
+                    message: 'Failed to update order status',
+                });
             }
         });
 
         // *****************************************************************************************
 
-        app.put("/editExpense/:id", async (req, res) => {
+        app.put('/editExpense/:id', async (req, res) => {
             try {
                 const { id } = req.params;
                 const {
@@ -1386,33 +1595,56 @@ async function run() {
                     expenseCategory,
                     expenseAmount,
                     expenseStatus,
-                    expenseNote
+                    expenseNote,
                 } = req.body;
 
                 if (!ObjectId.isValid(id)) {
-                    return res.status(400).json({ message: "Invalid expense ID" });
+                    return res
+                        .status(400)
+                        .json({ message: 'Invalid expense ID' });
                 }
 
                 // Fetch existing expense
-                const existingExpense = await expenseCollections.findOne({ _id: new ObjectId(id) });
+                const existingExpense = await expenseCollections.findOne({
+                    _id: new ObjectId(id),
+                });
 
                 if (!existingExpense) {
-                    return res.status(404).json({ message: "Expense not found" });
+                    return res
+                        .status(404)
+                        .json({ message: 'Expense not found' });
                 }
 
                 // Prepare update object
                 let updateData = {};
 
-                if (expenseDate && expenseDate !== existingExpense.expenseDate) updateData.expenseDate = expenseDate;
-                if (expenseName && expenseName !== existingExpense.expenseName) updateData.expenseName = expenseName;
-                if (expenseCategory && expenseCategory !== existingExpense.expenseCategory) updateData.expenseCategory = expenseCategory;
-                if (expenseAmount && expenseAmount !== existingExpense.expenseAmount) updateData.expenseAmount = expenseAmount;
-                if (expenseStatus && expenseStatus !== existingExpense.expenseStatus) updateData.expenseStatus = expenseStatus;
-                if (expenseNote && expenseNote !== existingExpense.expenseNote) updateData.expenseNote = expenseNote;
+                if (expenseDate && expenseDate !== existingExpense.expenseDate)
+                    updateData.expenseDate = expenseDate;
+                if (expenseName && expenseName !== existingExpense.expenseName)
+                    updateData.expenseName = expenseName;
+                if (
+                    expenseCategory &&
+                    expenseCategory !== existingExpense.expenseCategory
+                )
+                    updateData.expenseCategory = expenseCategory;
+                if (
+                    expenseAmount &&
+                    expenseAmount !== existingExpense.expenseAmount
+                )
+                    updateData.expenseAmount = expenseAmount;
+                if (
+                    expenseStatus &&
+                    expenseStatus !== existingExpense.expenseStatus
+                )
+                    updateData.expenseStatus = expenseStatus;
+                if (expenseNote && expenseNote !== existingExpense.expenseNote)
+                    updateData.expenseNote = expenseNote;
 
                 // If no updates are needed
                 if (Object.keys(updateData).length === 0) {
-                    return res.status(200).json({ message: "No changes detected" });
+                    return res
+                        .status(200)
+                        .json({ message: 'No changes detected' });
                 }
 
                 // Update expense record
@@ -1422,12 +1654,18 @@ async function run() {
                 );
 
                 if (result.modifiedCount === 0) {
-                    return res.status(400).json({ message: "Failed to update expense" });
+                    return res
+                        .status(400)
+                        .json({ message: 'Failed to update expense' });
                 }
 
                 // Update balance only if expenseAmount has changed
-                if (expenseAmount && expenseAmount !== existingExpense.expenseAmount) {
-                    const balanceChange = existingExpense.expenseAmount - expenseAmount;
+                if (
+                    expenseAmount &&
+                    expenseAmount !== existingExpense.expenseAmount
+                ) {
+                    const balanceChange =
+                        existingExpense.expenseAmount - expenseAmount;
 
                     await hrBalanceCollections.updateOne(
                         {},
@@ -1435,15 +1673,16 @@ async function run() {
                     );
                 }
 
-                res.status(200).json({ message: "Expense updated successfully" });
-
+                res.status(200).json({
+                    message: 'Expense updated successfully',
+                });
             } catch (error) {
-                res.status(500).json({ message: "Server error" });
+                res.status(500).json({ message: 'Server error' });
             }
         });
 
         // *****************************************************************************************
-        app.put("/returnHrBalance", async (req, res) => {
+        app.put('/returnHrBalance', async (req, res) => {
             try {
                 const { parseValue, note } = req.body;
 
@@ -1453,46 +1692,58 @@ async function run() {
                     await hrBalanceCollections.updateOne(
                         {},
                         {
-                            $inc: { balance: -parseValue }
-                        });
+                            $inc: { balance: -parseValue },
+                        }
+                    );
 
-
-
-
-                    // add the amount in main balance 
+                    // add the amount in main balance
                     await mainBalanceCollections.updateOne(
                         {},
                         {
-                            $inc: { mainBalance: parseValue }
-                        });
+                            $inc: { mainBalance: parseValue },
+                        }
+                    );
 
-                    await hrTransactionCollections.insertOne({ value: parseValue, note, date, type: "Out" });
+                    await hrTransactionCollections.insertOne({
+                        value: parseValue,
+                        note,
+                        date,
+                        type: 'Out',
+                    });
 
-                    res.status(200).json({ message: "success" });
+                    res.status(200).json({ message: 'success' });
                 } else {
-                    res.json({ message: "unsuccess" });
+                    res.json({ message: 'unsuccess' });
                 }
-
-
             } catch (error) {
-                res.status(500).json({ message: "Failed to add balance", error: error.message });
+                res.status(500).json({
+                    message: 'Failed to add balance',
+                    error: error.message,
+                });
             }
         });
         // *****************************************************************************************
         app.put('/clients/:id', async (req, res) => {
             try {
                 const clientId = req.params.id; // original client ID from the URL
-                const { clientId: newClientId, clientCountry: newCountry } = req.body;
+                const { clientId: newClientId, clientCountry: newCountry } =
+                    req.body;
 
                 if (!newClientId || !newCountry) {
-                    return res.json({ message: 'Client ID and Country are required.' });
+                    return res.json({
+                        message: 'Client ID and Country are required.',
+                    });
                 }
 
                 // Check if newClientId already exists in another document (prevent duplicate IDs)
                 if (clientId !== newClientId) {
-                    const existingClient = await clientCollections.findOne({ clientID: newClientId });
+                    const existingClient = await clientCollections.findOne({
+                        clientID: newClientId,
+                    });
                     if (existingClient) {
-                        return res.json({ message: 'The new Client ID already exists.' });
+                        return res.json({
+                            message: 'The new Client ID already exists.',
+                        });
                     }
                 }
 
@@ -1510,22 +1761,26 @@ async function run() {
                     return res.json({ message: 'Client not found.' });
                 }
 
-                res.json({ message: 'Client updated successfully', modifiedCount: result.modifiedCount });
-
+                res.json({
+                    message: 'Client updated successfully',
+                    modifiedCount: result.modifiedCount,
+                });
             } catch (error) {
                 res.status(500).json({ message: 'Internal server error' });
             }
         });
 
         // *****************************************************************************************
-        app.put("/extendDeadline/:orderId", async (req, res) => {
+        app.put('/extendDeadline/:orderId', async (req, res) => {
             try {
                 const id = req.params.orderId;
                 const { newDeadline } = req.body;
 
-                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                const isID = await localOrderCollections.findOne({
+                    _id: new ObjectId(id),
+                });
                 if (!isID) {
-                    return res.status(404).json({ message: "Order not found" });
+                    return res.status(404).json({ message: 'Order not found' });
                 }
 
                 const result = await localOrderCollections.updateOne(
@@ -1533,75 +1788,166 @@ async function run() {
                     {
                         $set: {
                             orderDeadLine: newDeadline,
-                            orderStatus: "Pending",
+                            orderStatus: 'Pending',
                             isLocked: false,
                             completeTime: 0,
-                            lastUpdated: 0
-                        }
+                            lastUpdated: 0,
+                        },
                     }
                 );
 
                 res.send(result);
             } catch (error) {
-                res.status(500).json({ message: "Failed to update order status" });
+                res.status(500).json({
+                    message: 'Failed to update order status',
+                });
             }
         });
 
         // *****************************************************************************************
-        app.put("/changeEarningStatus/:id", async (req, res) => {
+        app.put('/changeEarningStatus/:id', async (req, res) => {
             try {
                 const id = req.params.id;
-                const { amount, year, month } = req.body;
+                const { year, month, newStatus } = req.body;
 
-                const isID = await earningsCollections.findOne({ _id: new ObjectId(id) });
-
-                if (!isID) {
-                    return res.status(404).json({ message: "Earning data not found." });
+                if (!['Paid', 'Unpaid'].includes(newStatus)) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            'Invalid status. Must be either "Paid" or "Unpaid".',
+                    });
                 }
 
-                // Update the earnings status
-                const result = await earningsCollections.updateOne(
-                    { _id: new ObjectId(id) },
-                    {
-                        $set: {
-                            status: 'Paid',
-                        }
-                    }
-                );
+                // Find earning record
+                const earning = await earningsCollections.findOne({
+                    _id: new ObjectId(id),
+                });
+                if (!earning) {
+                    return res.status(404).json({
+                        success: false,
+                        message: 'Earning record not found.',
+                    });
+                }
 
-                // If unpaid record for this month & year exists, decrement its total
-                const isUnpaid = await unpaidCollections.findOne({ month, year });
+                const currentStatus = earning.status || 'Unpaid';
 
-                if (isUnpaid) {
+                // ✅ Use the correct field from DB (fallbacks for safety)
+                const rawAmount = earning.convertedBdt ?? earning.amount ?? 0;
+                const parsedAmount = Number(rawAmount);
+                if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Invalid earning amount on record.',
+                    });
+                }
+
+                // Skip if no status change
+                if (currentStatus === newStatus) {
+                    return res.status(200).json({
+                        success: true,
+                        message: `Status already "${newStatus}", no change applied.`,
+                    });
+                }
+
+                // Ensure a summary doc exists for this (month, year)
+                let unpaidRecord = await unpaidCollections.findOne({
+                    month,
+                    year,
+                });
+                if (!unpaidRecord) {
+                    await unpaidCollections.insertOne({
+                        month,
+                        year,
+                        totalConvertedBdt: 0,
+                        status: 'Unpaid',
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    });
+                    unpaidRecord = await unpaidCollections.findOne({
+                        month,
+                        year,
+                    });
+                }
+
+                // Compute delta for unpaid summary
+                let change = 0;
+                if (currentStatus === 'Unpaid' && newStatus === 'Paid') {
+                    // Paying now → decrease unpaid
+                    change = -parsedAmount;
+                } else if (currentStatus === 'Paid' && newStatus === 'Unpaid') {
+                    // Reverting to unpaid → increase unpaid
+                    change = parsedAmount;
+                }
+
+                // Apply change (if any)
+                if (change !== 0) {
                     await unpaidCollections.updateOne(
                         { month, year },
                         {
-                            $inc: {
-                                totalConvertedBdt: -parseFloat(amount)
-                            },
-                            $set: {
-                                status: "Paid"
-                            }
+                            $inc: { totalConvertedBdt: change },
+                            $set: { updatedAt: new Date() },
                         }
                     );
-
                 }
 
-                res.send(result);
+                // Update the earning’s status
+                const updateResult = await earningsCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { status: newStatus, updatedAt: new Date() } }
+                );
+
+                // Re-read updated summary to set its status correctly
+                const updatedSummary = await unpaidCollections.findOne({
+                    month,
+                    year,
+                });
+                const newSummaryStatus =
+                    (updatedSummary?.totalConvertedBdt ?? 0) > 0
+                        ? 'Unpaid'
+                        : 'Paid';
+
+                await unpaidCollections.updateOne(
+                    { month, year },
+                    {
+                        $set: {
+                            status: newSummaryStatus,
+                            updatedAt: new Date(),
+                        },
+                    }
+                );
+
+                return res.status(200).json({
+                    success: true,
+                    message: `Earning status updated to "${newStatus}".`,
+                    changeApplied: change,
+                    updatedEarning: updateResult,
+                    unpaidSummary: await unpaidCollections.findOne({
+                        month,
+                        year,
+                    }),
+                });
             } catch (error) {
-                console.error("❌ Error updating earning status:", error);
-                res.status(500).json({ message: "Failed to update earning status" });
+                console.error('❌ Error updating earning status:', error);
+                return res.status(500).json({
+                    success: false,
+                    message:
+                        error.message || 'Failed to update earning status.',
+                });
             }
         });
 
         // *****************************************************************************************
-        app.put("/markAsRead/:id", async (req, res) => {
+        app.put('/markAsRead/:id', async (req, res) => {
             const id = req.params.id;
             try {
-                const isID = await adminNotificationCollections.findOne({ _id: new ObjectId(id) });
+                const isID = await adminNotificationCollections.findOne({
+                    _id: new ObjectId(id),
+                });
 
                 if (!isID) {
-                    return res.status(404).json({ message: "Notification not found" });
+                    return res
+                        .status(404)
+                        .json({ message: 'Notification not found' });
                 }
 
                 const result = await adminNotificationCollections.updateOne(
@@ -1611,17 +1957,23 @@ async function run() {
 
                 res.send(result);
             } catch (error) {
-                res.status(500).json({ message: "Failed to mark notification as read" });
+                res.status(500).json({
+                    message: 'Failed to mark notification as read',
+                });
             }
         });
         // *****************************************************************************************
-        app.put("/employeeNotificationMarkAsRead/:id", async (req, res) => {
+        app.put('/employeeNotificationMarkAsRead/:id', async (req, res) => {
             const id = req.params.id;
             try {
-                const isID = await employeeNotificationCollections.findOne({ _id: new ObjectId(id) });
+                const isID = await employeeNotificationCollections.findOne({
+                    _id: new ObjectId(id),
+                });
 
                 if (!isID) {
-                    return res.status(404).json({ message: "Notification not found" });
+                    return res
+                        .status(404)
+                        .json({ message: 'Notification not found' });
                 }
 
                 const result = await employeeNotificationCollections.updateOne(
@@ -1631,27 +1983,30 @@ async function run() {
 
                 res.send(result);
             } catch (error) {
-                res.status(500).json({ message: "Failed to mark notification as read" });
+                res.status(500).json({
+                    message: 'Failed to mark notification as read',
+                });
             }
         });
         // *****************************************************************************************
-        app.put("/acceptLeave/:id", async (req, res) => {
+        app.put('/acceptLeave/:id', async (req, res) => {
             const id = req.params.id;
             try {
-                const isID = await appliedLeaveCollections.findOne({ _id: new ObjectId(id) });
+                const isID = await appliedLeaveCollections.findOne({
+                    _id: new ObjectId(id),
+                });
                 const email = isID.email;
                 const totalDays = isID.totalDays;
 
                 if (!isID) {
-                    return res.json({ message: "Application not found" });
-                };
+                    return res.json({ message: 'Application not found' });
+                }
 
                 // Reduce leave balance
                 await leaveBalanceCollections.updateOne(
                     { email: email },
-                    { $inc: { casualLeave: -totalDays } }  // Decrease casual leave balance by totalDays
+                    { $inc: { casualLeave: -totalDays } } // Decrease casual leave balance by totalDays
                 );
-
 
                 const result = await appliedLeaveCollections.updateOne(
                     { _id: new ObjectId(id) },
@@ -1660,21 +2015,20 @@ async function run() {
                 await employeeNotificationCollections.insertOne({
                     notification: `Leave request approved`,
                     email: email,
-                    link: "/leave",
-                    isRead: false
+                    link: '/leave',
+                    isRead: false,
                 });
                 // Update employee status
                 await employeeCollections.updateOne(
                     { email: email },
                     {
-                        $set: { status: 'On Leave' }  // Update employee status to 'On Leave'
+                        $set: { status: 'On Leave' }, // Update employee status to 'On Leave'
                     }
-
                 );
 
                 res.send(result);
             } catch (error) {
-                res.json({ message: "Failed to mark notification as read" });
+                res.json({ message: 'Failed to mark notification as read' });
             }
         });
         // *****************************************************************************************
@@ -1683,7 +2037,9 @@ async function run() {
             try {
                 const { id } = req.params;
                 if (!ObjectId.isValid(id)) {
-                    return res.status(400).json({ message: 'Invalid leave ID' });
+                    return res
+                        .status(400)
+                        .json({ message: 'Invalid leave ID' });
                 }
 
                 // 1) Read the leave doc to get the email (and verify it exists)
@@ -1692,7 +2048,9 @@ async function run() {
                     { projection: { email: 1, status: 1 } }
                 );
                 if (!leaveDoc) {
-                    return res.status(404).json({ message: 'Leave application not found' });
+                    return res
+                        .status(404)
+                        .json({ message: 'Leave application not found' });
                 }
 
                 // Optional: if already not Pending, you can short-circuit
@@ -1718,68 +2076,78 @@ async function run() {
 
                 res.send(update); // { matchedCount, modifiedCount, ... }
             } catch (err) {
-                res.status(500).json({ message: 'Failed to decline leave', error: err?.message });
+                res.status(500).json({
+                    message: 'Failed to decline leave',
+                    error: err?.message,
+                });
             }
         });
-
 
         // *****************************************************************************************
         // Mark order as Completed and lock it
-        app.put("/orderStatusComplete/:orderId", async (req, res) => {
+        app.put('/orderStatusComplete/:orderId', async (req, res) => {
             try {
                 const id = req.params.orderId;
-                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                const isID = await localOrderCollections.findOne({
+                    _id: new ObjectId(id),
+                });
 
                 if (!isID) {
-                    return res.status(404).json({ message: "Order not found" });
+                    return res.status(404).json({ message: 'Order not found' });
                 }
                 if (isID.isLocked) {
-                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
+                    return res.status(423).json({
+                        message:
+                            'Order is locked. Extend the deadline to reopen.',
+                    });
                 }
 
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
-                    { $set: { orderStatus: "Completed", isLocked: true } }
+                    { $set: { orderStatus: 'Completed', isLocked: true } }
                 );
 
                 res.send(result);
             } catch (error) {
-                res.status(500).json({ message: "Failed to update order status" });
+                res.status(500).json({
+                    message: 'Failed to update order status',
+                });
             }
         });
-
 
         // *****************************************************************************************
         // Set status to "Ready to Upload"
-        app.put("/orderStatusReadyToUpload/:orderId", async (req, res) => {
+        app.put('/orderStatusReadyToUpload/:orderId', async (req, res) => {
             try {
                 const id = req.params.orderId;
 
-                const isID = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                const isID = await localOrderCollections.findOne({
+                    _id: new ObjectId(id),
+                });
                 if (!isID) {
-                    return res.status(404).json({ message: "Order not found" });
+                    return res.status(404).json({ message: 'Order not found' });
                 }
                 if (isID.isLocked) {
-                    return res.status(423).json({ message: "Order is locked. Extend the deadline to reopen." });
+                    return res.status(423).json({
+                        message:
+                            'Order is locked. Extend the deadline to reopen.',
+                    });
                 }
 
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
-                    { $set: { orderStatus: "Ready to Upload" } }
+                    { $set: { orderStatus: 'Ready to Upload' } }
                 );
 
                 res.send(result);
             } catch (error) {
-                res.status(500).json({ message: "Failed to update order status" });
+                res.status(500).json({
+                    message: 'Failed to update order status',
+                });
             }
         });
 
         // *****************************************************************************************
-
-
-
-
-
 
         // ******************************************************************************************
         // ******************************************************************************************
@@ -1789,12 +2157,14 @@ async function run() {
 
             try {
                 const result = await employeeCollections.updateOne(
-                    { email: email },               // find by email
-                    { $set: updateData }            // update the fields
+                    { email: email }, // find by email
+                    { $set: updateData } // update the fields
                 );
 
                 if (result.modifiedCount === 0) {
-                    return res.status(404).json({ message: 'Employee not found or no changes made' });
+                    return res.status(404).json({
+                        message: 'Employee not found or no changes made',
+                    });
                 }
 
                 res.json({ message: 'Employee updated successfully' });
@@ -1810,7 +2180,9 @@ async function run() {
             const id = req.params.id;
 
             try {
-                const result = await shiftingCollections.deleteOne({ _id: new ObjectId(id) });
+                const result = await shiftingCollections.deleteOne({
+                    _id: new ObjectId(id),
+                });
 
                 if (result.deletedCount === 1) {
                     res.json({ message: 'success' });
@@ -1818,7 +2190,10 @@ async function run() {
                     res.json({ message: 'fail' });
                 }
             } catch (error) {
-                res.status(500).json({ message: 'Failed to remove OT', error: error.message });
+                res.status(500).json({
+                    message: 'Failed to remove OT',
+                    error: error.message,
+                });
             }
         });
 
@@ -1829,24 +2204,43 @@ async function run() {
                 const requestedEmail = req.query.userEmail;
                 const tokenEmail = req.user.email;
                 if (requestedEmail !== tokenEmail) {
-                    return res.status(403).json({ message: 'Forbidden Access' });
+                    return res
+                        .status(403)
+                        .json({ message: 'Forbidden Access' });
                 }
 
                 const { id } = req.params;
                 if (!ObjectId.isValid(id)) {
-                    return res.status(400).json({ message: 'Invalid order id' });
+                    return res
+                        .status(400)
+                        .json({ message: 'Invalid order id' });
                 }
 
                 // Optionally block locked/finalized here too:
-                const order = await localOrderCollections.findOne({ _id: new ObjectId(id) });
-                if (!order) return res.status(404).json({ message: 'Order not found' });
-                if (order.isLocked || ['Completed', 'Delivered'].includes(String(order.orderStatus))) {
-                    return res.status(423).json({ message: 'Order is locked/finalized and cannot be deleted' });
+                const order = await localOrderCollections.findOne({
+                    _id: new ObjectId(id),
+                });
+                if (!order)
+                    return res.status(404).json({ message: 'Order not found' });
+                if (
+                    order.isLocked ||
+                    ['Completed', 'Delivered'].includes(
+                        String(order.orderStatus)
+                    )
+                ) {
+                    return res.status(423).json({
+                        message:
+                            'Order is locked/finalized and cannot be deleted',
+                    });
                 }
 
-                const result = await localOrderCollections.deleteOne({ _id: new ObjectId(id) });
+                const result = await localOrderCollections.deleteOne({
+                    _id: new ObjectId(id),
+                });
                 if (!result.deletedCount) {
-                    return res.status(400).json({ message: 'Failed to delete order' });
+                    return res
+                        .status(400)
+                        .json({ message: 'Failed to delete order' });
                 }
 
                 res.json({ success: true });
@@ -1857,67 +2251,97 @@ async function run() {
 
         // ************************************************************************************************
 
-
         // ************************************************************************************************
-        app.get("/getCurrentUser", verifyToken, async (req, res) => {
+        app.get('/getCurrentUser', verifyToken, async (req, res) => {
             try {
-                const requestedEmail = req.query.userEmail;  // If this is a separate check
+                const requestedEmail = req.query.userEmail; // If this is a separate check
                 const tokenEmail = req.user.email;
 
-
                 if (requestedEmail !== tokenEmail) {
-                    return res.status(403).send({ message: "Forbidden Access" }); // 403 is more appropriate here
+                    return res
+                        .status(403)
+                        .send({ message: 'Forbidden Access' }); // 403 is more appropriate here
                 }
 
-                const user = await userCollections.findOne({ email: requestedEmail });
+                const user = await userCollections.findOne({
+                    email: requestedEmail,
+                });
 
                 if (!user) {
-                    return res.status(404).send({ message: "User not found" });
+                    return res.status(404).send({ message: 'User not found' });
                 }
 
                 res.send(user);
-
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch user' });
             }
         });
         // ************************************************************************************************
-        app.get("/getExpense", verifyToken, async (req, res) => {
+        app.get('/getExpense', verifyToken, async (req, res) => {
             try {
                 if (!req.user || !req.user.email) {
-                    return res.status(401).send({ message: "Unauthorized Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Unauthorized Access' });
                 }
 
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
                 if (userMail !== email) {
-                    return res.status(403).send({ message: "Forbidden Access" });
+                    return res
+                        .status(403)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const page = parseInt(req.query.page) || 1;
                 const size = parseInt(req.query.size) || 10;
-                const search = req.query.search || "";
-                const disablePagination = req.query.disablePagination === "true";
+                const search = req.query.search || '';
+                const disablePagination =
+                    req.query.disablePagination === 'true';
 
                 let numericSearch = parseFloat(search);
                 numericSearch = isNaN(numericSearch) ? null : numericSearch;
 
                 const query = search
                     ? {
-                        $or: [
-                            { userName: { $regex: new RegExp(search, "i") } },
-                            { expenseName: { $regex: new RegExp(search, "i") } },
-                            { expenseCategory: { $regex: new RegExp(search, "i") } },
-                            { expenseStatus: { $regex: new RegExp(search, "i") } },
-                            { expenseNote: { $regex: new RegExp(search, "i") } },
-                            { expenseDate: { $regex: new RegExp(search, "i") } },
-                            ...(numericSearch !== null ? [{ expenseAmount: numericSearch }] : []),
-                        ],
-                    }
+                          $or: [
+                              { userName: { $regex: new RegExp(search, 'i') } },
+                              {
+                                  expenseName: {
+                                      $regex: new RegExp(search, 'i'),
+                                  },
+                              },
+                              {
+                                  expenseCategory: {
+                                      $regex: new RegExp(search, 'i'),
+                                  },
+                              },
+                              {
+                                  expenseStatus: {
+                                      $regex: new RegExp(search, 'i'),
+                                  },
+                              },
+                              {
+                                  expenseNote: {
+                                      $regex: new RegExp(search, 'i'),
+                                  },
+                              },
+                              {
+                                  expenseDate: {
+                                      $regex: new RegExp(search, 'i'),
+                                  },
+                              },
+                              ...(numericSearch !== null
+                                  ? [{ expenseAmount: numericSearch }]
+                                  : []),
+                          ],
+                      }
                     : {};
 
                 if (!expenseCollections) {
-                    return res.status(500).json({ message: "Database connection issue" });
+                    return res
+                        .status(500)
+                        .json({ message: 'Database connection issue' });
                 }
                 const allExpense = await expenseCollections.find().toArray();
 
@@ -1940,45 +2364,61 @@ async function run() {
 
                 const category = await categoryCollections.find({}).toArray();
                 res.send({ expense, count, category, allExpense });
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch expense', error: error.message });
+                res.status(500).json({
+                    message: 'Failed to fetch expense',
+                    error: error.message,
+                });
             }
         });
 
-
         // ************************************************************************************************
-        app.get("/getLocalOrder", verifyToken, async (req, res) => {
+        app.get('/getLocalOrder', verifyToken, async (req, res) => {
             try {
                 if (!req.user || !req.user.email) {
-                    return res.status(401).send({ message: "Unauthorized Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Unauthorized Access' });
                 }
 
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
                 if (userMail !== email) {
-                    return res.status(403).send({ message: "Forbidden Access" });
+                    return res
+                        .status(403)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const page = parseInt(req.query.page) || 1;
                 const size = parseInt(req.query.size) || 10;
-                const search = req.query.search || "";
-                const disablePagination = req.query.disablePagination === "true";
+                const search = req.query.search || '';
+                const disablePagination =
+                    req.query.disablePagination === 'true';
 
                 let numericSearch = parseFloat(search);
                 numericSearch = isNaN(numericSearch) ? null : numericSearch;
 
                 const match = search
                     ? {
-                        $or: [
-                            { userName: { $regex: new RegExp(search, "i") } },
-                            { clientID: { $regex: new RegExp(search, "i") } },
-                            { orderName: { $regex: new RegExp(search, "i") } },
-                            { orderQTY: { $regex: new RegExp(search, "i") } },
-                            { orderStatus: { $regex: new RegExp(search, "i") } },
-                            ...(numericSearch !== null ? [{ orderPrice: numericSearch }] : []),
-                        ],
-                    }
+                          $or: [
+                              { userName: { $regex: new RegExp(search, 'i') } },
+                              { clientID: { $regex: new RegExp(search, 'i') } },
+                              {
+                                  orderName: {
+                                      $regex: new RegExp(search, 'i'),
+                                  },
+                              },
+                              { orderQTY: { $regex: new RegExp(search, 'i') } },
+                              {
+                                  orderStatus: {
+                                      $regex: new RegExp(search, 'i'),
+                                  },
+                              },
+                              ...(numericSearch !== null
+                                  ? [{ orderPrice: numericSearch }]
+                                  : []),
+                          ],
+                      }
                     : {};
 
                 const pipeline = [
@@ -1991,36 +2431,46 @@ async function run() {
                     {
                         $addFields: {
                             _tryISO: {
-                                $convert: { input: "$date", to: "date", onError: null, onNull: null }
+                                $convert: {
+                                    input: '$date',
+                                    to: 'date',
+                                    onError: null,
+                                    onNull: null,
+                                },
                             },
                             _tryDmyMon: {
                                 $dateFromString: {
-                                    dateString: "$date",
-                                    format: "%d-%b-%Y",
+                                    dateString: '$date',
+                                    format: '%d-%b-%Y',
                                     onError: null,
-                                    onNull: null
-                                }
+                                    onNull: null,
+                                },
                             },
                             _tryDmyDash: {
                                 $dateFromString: {
-                                    dateString: "$date",
-                                    format: "%d-%m-%Y",
+                                    dateString: '$date',
+                                    format: '%d-%m-%Y',
                                     onError: null,
-                                    onNull: null
-                                }
+                                    onNull: null,
+                                },
                             },
                             _tryDeadlineFmt: {
                                 $dateFromString: {
-                                    dateString: "$orderDeadLine",
-                                    format: "%d-%b-%Y %H:%M:%S",
+                                    dateString: '$orderDeadLine',
+                                    format: '%d-%b-%Y %H:%M:%S',
                                     onError: null,
-                                    onNull: null
-                                }
+                                    onNull: null,
+                                },
                             },
                             _tryDeadlineISO: {
-                                $convert: { input: "$orderDeadLine", to: "date", onError: null, onNull: null }
-                            }
-                        }
+                                $convert: {
+                                    input: '$orderDeadLine',
+                                    to: 'date',
+                                    onError: null,
+                                    onNull: null,
+                                },
+                            },
+                        },
                     },
 
                     // Choose first non-null candidate as the raw key
@@ -2028,26 +2478,26 @@ async function run() {
                         $addFields: {
                             _rawDateKey: {
                                 $ifNull: [
-                                    "$_tryISO",
+                                    '$_tryISO',
                                     {
                                         $ifNull: [
-                                            "$_tryDmyMon",
+                                            '$_tryDmyMon',
                                             {
                                                 $ifNull: [
-                                                    "$_tryDmyDash",
+                                                    '$_tryDmyDash',
                                                     {
                                                         $ifNull: [
-                                                            "$_tryDeadlineFmt",
-                                                            "$_tryDeadlineISO"
-                                                        ]
-                                                    }
-                                                ]
-                                            }
-                                        ]
-                                    }
-                                ]
-                            }
-                        }
+                                                            '$_tryDeadlineFmt',
+                                                            '$_tryDeadlineISO',
+                                                        ],
+                                                    },
+                                                ],
+                                            },
+                                        ],
+                                    },
+                                ],
+                            },
+                        },
                     },
 
                     // Truncate to midnight in Asia/Dhaka so all items that day group together
@@ -2055,154 +2505,175 @@ async function run() {
                         $addFields: {
                             dateKey: {
                                 $cond: [
-                                    { $ne: ["$_rawDateKey", null] },
-                                    { $dateTrunc: { date: "$_rawDateKey", unit: "day", timezone: "Asia/Dhaka" } },
+                                    { $ne: ['$_rawDateKey', null] },
+                                    {
+                                        $dateTrunc: {
+                                            date: '$_rawDateKey',
+                                            unit: 'day',
+                                            timezone: 'Asia/Dhaka',
+                                        },
+                                    },
                                     // If we still couldn't parse, push it to the very end
-                                    new Date(0)
-                                ]
+                                    new Date(0),
+                                ],
                             },
-                            _lastUpdatedOrZero: { $ifNull: ["$lastUpdated", 0] }
-                        }
+                            _lastUpdatedOrZero: {
+                                $ifNull: ['$lastUpdated', 0],
+                            },
+                        },
                     },
 
                     // Sort by chosen date (desc), then recent update, then _id
-                    { $sort: { dateKey: -1, _lastUpdatedOrZero: -1, _id: -1 } }
+                    { $sort: { dateKey: -1, _lastUpdatedOrZero: -1, _id: -1 } },
                 ];
 
                 const count = await localOrderCollections.countDocuments(match);
 
                 let orders;
                 if (disablePagination) {
-                    orders = await localOrderCollections.aggregate(pipeline).toArray();
+                    orders = await localOrderCollections
+                        .aggregate(pipeline)
+                        .toArray();
                 } else {
                     orders = await localOrderCollections
                         .aggregate([
                             ...pipeline,
                             { $skip: (page - 1) * size },
-                            { $limit: size }
+                            { $limit: size },
                         ])
                         .toArray();
                 }
 
                 res.send({ orders, count });
             } catch (error) {
-                res.status(500).json({ message: "Failed to fetch orders", error: error?.message });
+                res.status(500).json({
+                    message: 'Failed to fetch orders',
+                    error: error?.message,
+                });
             }
         });
 
-
-
-
         // ************************************************************************************************
-        app.get("/getSingleOrder/:orderId", verifyToken, async (req, res) => {
+        app.get('/getSingleOrder/:orderId', verifyToken, async (req, res) => {
             try {
                 const id = req.params.orderId;
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
-                const result = await localOrderCollections.findOne({ _id: new ObjectId(id) });
+                const result = await localOrderCollections.findOne({
+                    _id: new ObjectId(id),
+                });
                 res.send(result);
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch expense' });
             }
         });
         // ************************************************************************************************
-        app.get("/getClientID", verifyToken, async (req, res) => {
-
+        app.get('/getClientID', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const result = await clientCollections.find().toArray();
                 res.send(result);
-
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch client' });
             }
         });
         // ************************************************************************************************
-        app.get("/getMainBalance", verifyToken, async (req, res) => {
-
+        app.get('/getMainBalance', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const result = await mainBalanceCollections.find().toArray();
                 res.send(result[0]);
-
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch balance' });
             }
         });
         // ************************************************************************************************
-        app.get("/getHrBalance", verifyToken, async (req, res) => {
-
+        app.get('/getHrBalance', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const result = await hrBalanceCollections.find().toArray();
                 const balance = result[0].balance;
-                const hrTransaction = await hrTransactionCollections.find().toArray();
+                const hrTransaction = await hrTransactionCollections
+                    .find()
+                    .toArray();
 
                 const expense = await expenseCollections.find().toArray(); //send expense here to decrease API call (in context API)
 
                 res.send({ balance, hrTransaction, expense });
-
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch balance' });
             }
         });
         // ************************************************************************************************
-        app.get("/getClient", verifyToken, async (req, res) => {
-
+        app.get('/getClient', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
-                const result = await clientCollections.find().sort({ _id: -1 }).toArray();
+                const result = await clientCollections
+                    .find()
+                    .sort({ _id: -1 })
+                    .toArray();
 
                 res.send(result);
-
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch balance' });
             }
         });
         // ************************************************************************************************
         //getEarnings
-        app.get("/getEarnings", verifyToken, async (req, res) => {
+        app.get('/getEarnings', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const page = parseInt(req.query.page) || 1;
                 const size = parseInt(req.query.size) || 10;
-                const search = req.query.search || "";
-                const selectedMonth = req.query.month || "";
+                const search = req.query.search || '';
+                const selectedMonth = req.query.month || '';
 
                 const query = {
                     ...(search && {
@@ -2213,12 +2684,15 @@ async function run() {
                             { date: { $regex: new RegExp(search, 'i') } },
                         ],
                     }),
-                    ...(selectedMonth && { month: selectedMonth })
+                    ...(selectedMonth && { month: selectedMonth }),
                 };
 
-                const totalCount = await earningsCollections.countDocuments(query);
+                const totalCount = await earningsCollections.countDocuments(
+                    query
+                );
 
-                const result = await earningsCollections.find(query)
+                const result = await earningsCollections
+                    .find(query)
                     .skip((page - 1) * size)
                     .limit(size)
                     .sort({ _id: -1 })
@@ -2226,19 +2700,21 @@ async function run() {
 
                 const totalRev = await earningsCollections.find().toArray();
 
-                const totals = await earningsCollections.aggregate([
-                    { $match: query },
-                    {
-                        $group: {
-                            _id: null,
-                            totalImageQty: { $sum: "$imageQty" },
-                            totalUsd: { $sum: "$totalUsd" },
-                            totalRate: { $sum: "$convertRate" },
-                            totalBdt: { $sum: "$convertedBdt" },
-                            countRate: { $sum: 1 }
-                        }
-                    }
-                ]).toArray();
+                const totals = await earningsCollections
+                    .aggregate([
+                        { $match: query },
+                        {
+                            $group: {
+                                _id: null,
+                                totalImageQty: { $sum: '$imageQty' },
+                                totalUsd: { $sum: '$totalUsd' },
+                                totalRate: { $sum: '$convertRate' },
+                                totalBdt: { $sum: '$convertedBdt' },
+                                countRate: { $sum: 1 },
+                            },
+                        },
+                    ])
+                    .toArray();
 
                 res.send({
                     result,
@@ -2247,60 +2723,76 @@ async function run() {
                     totalSummary: {
                         totalImageQty: totals[0]?.totalImageQty || 0,
                         totalUsd: totals[0]?.totalUsd || 0,
-                        avgRate: totals[0]?.totalRate / (totals[0]?.countRate || 1),
+                        avgRate:
+                            totals[0]?.totalRate / (totals[0]?.countRate || 1),
                         totalBdt: totals[0]?.totalBdt || 0,
-                    }
+                    },
                 });
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch earnings', error: error.message });
+                res.status(500).json({
+                    message: 'Failed to fetch earnings',
+                    error: error.message,
+                });
             }
         });
 
         //earnings
 
-
         // ************************************************************************************************
-        app.get("/getEmployee", verifyToken, async (req, res) => {
-
+        app.get('/getEmployee', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
-                const findEmployee = await employeeCollections.findOne({ email: userMail });
+                const findEmployee = await employeeCollections.findOne({
+                    email: userMail,
+                });
 
                 // const result = await earningsCollections.find().toArray();
 
                 res.send(findEmployee);
-
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch balance' });
             }
         });
         // ************************************************************************************************
-        app.get("/getEmployeeList", verifyToken, async (req, res) => {
+        app.get('/getEmployeeList', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
-                const search = req.query.search || "";
+                const search = req.query.search || '';
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const query = search
                     ? {
-                        $or: [
-                            { fullName: { $regex: search, $options: "i" } },
-                            { email: { $regex: search, $options: "i" } },
-                            { phoneNumber: { $regex: search, $options: "i" } },
-                            { designation: { $regex: search, $options: "i" } }
-                        ]
-                    }
+                          $or: [
+                              { fullName: { $regex: search, $options: 'i' } },
+                              { email: { $regex: search, $options: 'i' } },
+                              {
+                                  phoneNumber: {
+                                      $regex: search,
+                                      $options: 'i',
+                                  },
+                              },
+                              {
+                                  designation: {
+                                      $regex: search,
+                                      $options: 'i',
+                                  },
+                              },
+                          ],
+                      }
                     : {};
 
                 const findEmployeeList = await employeeCollections
@@ -2309,21 +2801,24 @@ async function run() {
                     .toArray();
 
                 res.send(findEmployeeList);
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch employee list' });
+                res.status(500).json({
+                    message: 'Failed to fetch employee list',
+                });
             }
         });
 
         // ************************************************************************************************
-        app.get("/gethShiftedEmployee", verifyToken, async (req, res) => {
+        app.get('/gethShiftedEmployee', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
-                const search = req.query.search || "";
+                const search = req.query.search || '';
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const findEmployeeList = await shiftingCollections
@@ -2332,150 +2827,194 @@ async function run() {
                     .toArray();
 
                 res.send(findEmployeeList);
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch employee list' });
+                res.status(500).json({
+                    message: 'Failed to fetch employee list',
+                });
             }
         });
         // ************************************************************************************************
-        app.get("/getProfit", verifyToken, async (req, res) => {
+        app.get('/getProfit', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const earnings = await earningsCollections.find().toArray();
-                const totalEarnings = earnings.reduce((acc, earning) => acc + Number(earning.convertedBdt), 0);
+                const totalEarnings = earnings.reduce(
+                    (acc, earning) => acc + Number(earning.convertedBdt),
+                    0
+                );
 
                 const expense = await expenseCollections.find().toArray();
-                const totalExpense = expense.reduce((acc, exp) => acc + Number(exp.expenseAmount), 0);
+                const totalExpense = expense.reduce(
+                    (acc, exp) => acc + Number(exp.expenseAmount),
+                    0
+                );
 
-                const profit = parseFloat(totalEarnings) - parseFloat(totalExpense);
+                const profit =
+                    parseFloat(totalEarnings) - parseFloat(totalExpense);
                 res.send({ totalEarnings, totalExpense, profit });
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch employee list' });
+                res.status(500).json({
+                    message: 'Failed to fetch employee list',
+                });
             }
         });
 
         // *************************************************************************************************
-        app.get("/getShareHolders", verifyToken, async (req, res) => {
+        app.get('/getShareHolders', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const result = await shareHoldersCollections.find().toArray();
                 res.send(result);
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch share holders list' });
+                res.status(500).json({
+                    message: 'Failed to fetch share holders list',
+                });
             }
         });
 
         // ***********************getShareholderInfo*******************************************************
-        app.get("/getShareholderInfo", verifyToken, async (req, res) => {
+        app.get('/getShareholderInfo', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const result = await profitShareCollections.find().toArray();
                 res.send(result);
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch share holders list' });
+                res.status(500).json({
+                    message: 'Failed to fetch share holders list',
+                });
             }
         });
         // ************************************************************************************************
-        app.get("/getCheckInInfo", verifyToken, async (req, res) => {
+        app.get('/getCheckInInfo', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
-                const date = req.query.date || moment(new Date()).format("DD-MMM-YYYY");
+                const date =
+                    req.query.date || moment(new Date()).format('DD-MMM-YYYY');
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
-                };
-                const isExist = await checkInCollections.findOne({ email: userMail, date: date });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
+                }
+                const isExist = await checkInCollections.findOne({
+                    email: userMail,
+                    date: date,
+                });
                 res.send(isExist);
-
-
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch check-in time' });
+                res.status(500).json({
+                    message: 'Failed to fetch check-in time',
+                });
             }
         });
         // ************************************************************************************************
-        app.get("/getCheckOutInfo", verifyToken, async (req, res) => {
+        app.get('/getCheckOutInfo', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
-                const date = req.query.date || moment(new Date()).format("DD-MMM-YYYY");
+                const date =
+                    req.query.date || moment(new Date()).format('DD-MMM-YYYY');
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
-                };
-                const isExist = await checkOutCollections.findOne({ email: userMail, date: date });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
+                }
+                const isExist = await checkOutCollections.findOne({
+                    email: userMail,
+                    date: date,
+                });
                 res.send(isExist);
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch check-in time' });
+                res.status(500).json({
+                    message: 'Failed to fetch check-in time',
+                });
             }
         });
         // ************************************************************************************************
-        app.get("/getStartOTInfo", verifyToken, async (req, res) => {
+        app.get('/getStartOTInfo', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
-                const date = req.query.date || moment(new Date()).format("DD-MMM-YYYY");
+                const date =
+                    req.query.date || moment(new Date()).format('DD-MMM-YYYY');
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
-                };
-                const isExist = await OTStartCollections.findOne({ email: userMail, date: date });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
+                }
+                const isExist = await OTStartCollections.findOne({
+                    email: userMail,
+                    date: date,
+                });
 
                 res.send(isExist);
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch check-in time' });
+                res.status(500).json({
+                    message: 'Failed to fetch check-in time',
+                });
             }
         });
         // ************************************************************************************************
-        app.get("/getStopOTTime", verifyToken, async (req, res) => {
+        app.get('/getStopOTTime', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
-                const date = req.query.date || moment(new Date()).format("DD-MMM-YYYY");
+                const date =
+                    req.query.date || moment(new Date()).format('DD-MMM-YYYY');
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
-                };
-                const isExist = await OTStopCollections.findOne({ email: userMail, date: date });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
+                }
+                const isExist = await OTStopCollections.findOne({
+                    email: userMail,
+                    date: date,
+                });
                 res.send(isExist);
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch check-in time' });
+                res.status(500).json({
+                    message: 'Failed to fetch check-in time',
+                });
             }
         });
         // ************************************************************************************************
-        app.get("/getAttendance", verifyToken, async (req, res) => {
+        app.get('/getAttendance', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
-
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const result = await attendanceCollections
@@ -2485,84 +3024,116 @@ async function run() {
                     .toArray();
                 res.send(result);
             } catch (error) {
-                console.error("Error fetching attendance:", error.message);
-                res.status(500).json({ message: "Failed to fetch attendance" });
+                console.error('Error fetching attendance:', error.message);
+                res.status(500).json({ message: 'Failed to fetch attendance' });
             }
         });
 
-
         // ************************************************************************************************
         // Working shift for the logged-in employee (secure)
-        app.get("/gethWorkingShift", verifyToken, async (req, res) => {
+        app.get('/gethWorkingShift', verifyToken, async (req, res) => {
             try {
                 const requestedEmail = req.query.userEmail;
                 if (requestedEmail !== req.user.email) {
-                    return res.status(403).send({ message: "Forbidden Access" });
+                    return res
+                        .status(403)
+                        .send({ message: 'Forbidden Access' });
                 }
 
-                const shiftDoc = await shiftingCollections.findOne({ email: requestedEmail });
-                res.send(shiftDoc?.shiftName || "No Shift Assigned");
+                const shiftDoc = await shiftingCollections.findOne({
+                    email: requestedEmail,
+                });
+                res.send(shiftDoc?.shiftName || 'No Shift Assigned');
             } catch (error) {
-                res.status(500).json({ message: "Failed to fetch working shift", error: error.message });
+                res.status(500).json({
+                    message: 'Failed to fetch working shift',
+                    error: error.message,
+                });
             }
         });
 
         // ************************************************************************************************
         // /getSalaryAndPF – always return an array with one safe object
         // Salary & PF for the logged-in employee (secure)
-        app.get("/getSalaryAndPF", verifyToken, async (req, res) => {
+        app.get('/getSalaryAndPF', verifyToken, async (req, res) => {
             try {
                 const requestedEmail = req.query.userEmail;
                 if (requestedEmail !== req.user.email) {
-                    return res.status(403).send({ message: "Forbidden Access" });
+                    return res
+                        .status(403)
+                        .send({ message: 'Forbidden Access' });
                 }
 
-                const docs = await PFAndSalaryCollections.find({ email: requestedEmail }).toArray();
+                const docs = await PFAndSalaryCollections.find({
+                    email: requestedEmail,
+                }).toArray();
                 if (!docs.length) {
                     // Safe default so UI doesn't break
-                    return res.send([{ email: requestedEmail, salary: 0, pfContribution: 0, pfStatus: "inactive" }]);
+                    return res.send([
+                        {
+                            email: requestedEmail,
+                            salary: 0,
+                            pfContribution: 0,
+                            pfStatus: 'inactive',
+                        },
+                    ]);
                 }
                 res.send(docs);
             } catch (error) {
-                res.status(500).json({ message: "Failed to fetch salary/PF", error: error.message });
+                res.status(500).json({
+                    message: 'Failed to fetch salary/PF',
+                    error: error.message,
+                });
             }
         });
 
         // ************************************************************************************************
         // Get a single shareholder by ID
-        app.get("/getSingleShareholder/:id", verifyToken, async (req, res) => {
+        app.get('/getSingleShareholder/:id', verifyToken, async (req, res) => {
             try {
                 const id = req.params.id;
                 const objectId = new ObjectId(id);
 
-                const isShareholder = await shareHoldersCollections.findOne({ _id: objectId });
-                const shareholder = await profitShareCollections.find({ email: isShareholder.email }).toArray();
+                const isShareholder = await shareHoldersCollections.findOne({
+                    _id: objectId,
+                });
+                const shareholder = await profitShareCollections
+                    .find({ email: isShareholder.email })
+                    .toArray();
 
                 if (!shareholder) {
-                    return res.status(404).json({ message: 'Shareholder not found' });
+                    return res
+                        .status(404)
+                        .json({ message: 'Shareholder not found' });
                 }
 
                 res.send(shareholder);
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch shareholder', error: error.message });
+                res.status(500).json({
+                    message: 'Failed to fetch shareholder',
+                    error: error.message,
+                });
             }
         });
 
         // ************************************************************************************************
-        app.get("/getMonthlyProfit", verifyToken, async (req, res) => {
+        app.get('/getMonthlyProfit', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const result = await monthlyProfitCollections.find().toArray();
                 res.send(result);
-
             } catch (error) {
-                res.status(500).json({ message: 'Failed to fetch share holders list' });
+                res.status(500).json({
+                    message: 'Failed to fetch share holders list',
+                });
             }
         });
         // ************************************************************************************************
@@ -2571,14 +3142,19 @@ async function run() {
                 const { month, year, sharedAmount, userName } = req.body;
                 const date = new Date();
 
-                const monthDoc = await monthlyProfitCollections.findOne({ month, year });
+                const monthDoc = await monthlyProfitCollections.findOne({
+                    month,
+                    year,
+                });
                 if (!monthDoc) {
-                    return res.json({ message: `No profit record found for ${month} ${year}` });
+                    return res.json({
+                        message: `No profit record found for ${month} ${year}`,
+                    });
                 }
 
                 if (parseFloat(monthDoc.profit) < parseFloat(sharedAmount)) {
                     return res.json({
-                        message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${sharedAmount}`
+                        message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${sharedAmount}`,
                     });
                 }
 
@@ -2587,31 +3163,39 @@ async function run() {
                     { email: 'masumkamal2024@gmail.com', percent: 22 },
                     { email: 'arifulislamarif1971@gmail.com', percent: 22 },
                     { email: 'kabiritnext@gmail.com', percent: 10 },
-                    { email: 'asad4graphics@gmail.com', percent: 10 }
+                    { email: 'asad4graphics@gmail.com', percent: 10 },
                 ];
 
                 // Fetch full shareholder info from DB (assuming you have their data stored)
-                const shareholders = await shareHoldersCollections.find({
-                    email: { $in: shares.map(s => s.email) }
-                }).toArray();
+                const shareholders = await shareHoldersCollections
+                    .find({
+                        email: { $in: shares.map((s) => s.email) },
+                    })
+                    .toArray();
 
-                const shareData = shares.map(s => {
-                    const holder = shareholders.find(h => h.email === s.email);
+                const shareData = shares.map((s) => {
+                    const holder = shareholders.find(
+                        (h) => h.email === s.email
+                    );
                     return {
                         name: holder?.shareHoldersName || '',
                         mobile: holder?.mobile || '',
                         email: s.email,
                         sharedPercent: s.percent,
-                        sharedProfitBalance: parseFloat((sharedAmount * s.percent / 100).toFixed(2)),
+                        sharedProfitBalance: parseFloat(
+                            ((sharedAmount * s.percent) / 100).toFixed(2)
+                        ),
                         totalProfitBalance: parseFloat(monthDoc.profit),
                         month,
                         year,
                         date,
-                        userName
+                        userName,
                     };
                 });
 
-                const result = await profitShareCollections.insertMany(shareData);
+                const result = await profitShareCollections.insertMany(
+                    shareData
+                );
 
                 await monthlyProfitCollections.updateOne(
                     { month, year },
@@ -2620,13 +3204,16 @@ async function run() {
                         $push: {
                             shared: {
                                 date,
-                                amount: parseFloat(sharedAmount)
-                            }
-                        }
+                                amount: parseFloat(sharedAmount),
+                            },
+                        },
                     }
                 );
 
-                res.send({ message: 'Profit shared successfully', insertedCount: result.insertedCount });
+                res.send({
+                    message: 'Profit shared successfully',
+                    insertedCount: result.insertedCount,
+                });
             } catch (error) {
                 res.json({ message: 'Failed to share monthly profit' });
             }
@@ -2638,19 +3225,25 @@ async function run() {
                 const { month, year, transferAmount, userName } = req.body;
                 const date = new Date();
 
-                const monthDoc = await monthlyProfitCollections.findOne({ month, year });
+                const monthDoc = await monthlyProfitCollections.findOne({
+                    month,
+                    year,
+                });
                 if (!monthDoc) {
-                    return res.json({ message: `No profit record found for ${month} ${year}` });
+                    return res.json({
+                        message: `No profit record found for ${month} ${year}`,
+                    });
                 }
 
                 if (parseFloat(monthDoc.profit) < parseFloat(transferAmount)) {
                     return res.json({
-                        message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${transferAmount}`
+                        message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${transferAmount}`,
                     });
                 }
 
-                const shareholder = await shareHoldersCollections.findOne({ email: 'asadexpert1@gmail.com' });
-
+                const shareholder = await shareHoldersCollections.findOne({
+                    email: 'asadexpert1@gmail.com',
+                });
 
                 const result = await profitShareCollections.insertOne({
                     name: shareholder?.shareHoldersName || '',
@@ -2661,7 +3254,7 @@ async function run() {
                     month,
                     year,
                     date,
-                    userName
+                    userName,
                 });
 
                 await monthlyProfitCollections.updateOne(
@@ -2671,13 +3264,16 @@ async function run() {
                         $push: {
                             shared: {
                                 date,
-                                amount: parseFloat(transferAmount)
-                            }
-                        }
+                                amount: parseFloat(transferAmount),
+                            },
+                        },
                     }
                 );
 
-                res.send({ message: 'Profit transfer successfully', insertedId: result.insertedId });
+                res.send({
+                    message: 'Profit transfer successfully',
+                    insertedId: result.insertedId,
+                });
             } catch (error) {
                 console.error(error);
                 res.json({ message: 'Failed to transfer monthly profit' });
@@ -2879,13 +3475,15 @@ async function run() {
 
         //calculate and store monthly profit
         // ************************************************************************************************
-        app.get("/getUnpaidAmount", verifyToken, async (req, res) => {
+        app.get('/getUnpaidAmount', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const unpaidData = await unpaidCollections.find().toArray();
@@ -2896,64 +3494,86 @@ async function run() {
                 }, 0);
 
                 res.send({ totalUnpaid });
-
             } catch (error) {
-                res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
+                res.status(500).json({
+                    message: 'Failed to fetch unpaid amount',
+                    error: error.message,
+                });
             }
         });
 
         // *************************************************************************************************
-        app.get("/getSharedProfit", verifyToken, async (req, res) => {
+        app.get('/getSharedProfit', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
-                const sharedProfit = await profitShareCollections.find().toArray();
+                const sharedProfit = await profitShareCollections
+                    .find()
+                    .toArray();
 
                 // ✅ Use reduce to calculate the total unpaid amount
                 const totalProfitShared = sharedProfit.reduce((sum, item) => {
-                    return sum + parseFloat(item.sharedProfitBalance || item.transferProfitBalance);
+                    return (
+                        sum +
+                        parseFloat(
+                            item.sharedProfitBalance ||
+                                item.transferProfitBalance
+                        )
+                    );
                 }, 0);
 
                 res.send({ totalProfitShared });
-
             } catch (error) {
-                res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
+                res.status(500).json({
+                    message: 'Failed to fetch unpaid amount',
+                    error: error.message,
+                });
             }
         });
 
         // ************************************************************************************************
 
-        app.get("/getAdminNotification", verifyToken, async (req, res) => {
+        app.get('/getAdminNotification', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
-                const notification = await adminNotificationCollections.find().sort({ _id: -1 }).toArray();
-
+                const notification = await adminNotificationCollections
+                    .find()
+                    .sort({ _id: -1 })
+                    .toArray();
 
                 res.send(notification);
-
             } catch (error) {
-                res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
+                res.status(500).json({
+                    message: 'Failed to fetch unpaid amount',
+                    error: error.message,
+                });
             }
         });
         // ************************************************************************************************
         // All leave applications (secure); client can filter own entries
         // All leave applications (secure); client can filter own entries
-        app.get("/getAppliedLeave", verifyToken, async (req, res) => {
+        app.get('/getAppliedLeave', verifyToken, async (req, res) => {
             try {
                 const requestedEmail = req.query.userEmail;
                 if (requestedEmail !== req.user.email) {
-                    return res.status(403).send({ message: "Forbidden Access" });
+                    return res
+                        .status(403)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const appliedLeave = await appliedLeaveCollections
@@ -2963,56 +3583,68 @@ async function run() {
 
                 res.send(appliedLeave);
             } catch (error) {
-                res.status(500).json({ message: "Failed to fetch applied leaves", error: error.message });
+                res.status(500).json({
+                    message: 'Failed to fetch applied leaves',
+                    error: error.message,
+                });
             }
         });
 
-
         // ************************************************************************************************
-        app.get("/getEmployeeNotification", verifyToken, async (req, res) => {
+        app.get('/getEmployeeNotification', verifyToken, async (req, res) => {
             try {
                 const userMail = req.query.userEmail;
                 const email = req.user.email;
 
                 if (userMail !== email) {
-                    return res.status(401).send({ message: "Forbidden Access" });
+                    return res
+                        .status(401)
+                        .send({ message: 'Forbidden Access' });
                 }
 
-                const notification = await employeeNotificationCollections.find({ email: userMail }).sort({ _id: -1 }).toArray();
-
+                const notification = await employeeNotificationCollections
+                    .find({ email: userMail })
+                    .sort({ _id: -1 })
+                    .toArray();
 
                 res.send(notification);
-
             } catch (error) {
-                res.status(500).json({ message: "Failed to fetch unpaid amount", error: error.message });
+                res.status(500).json({
+                    message: 'Failed to fetch unpaid amount',
+                    error: error.message,
+                });
             }
         });
         // ************************************************************************************************
         // --- Admin Attendance across employees ---
         // Admin/employee attendance list (secure)
-        app.get("/admin/attendance/list", verifyToken, async (req, res) => {
+        app.get('/admin/attendance/list', verifyToken, async (req, res) => {
             try {
                 const { userEmail, start, end, employeeEmail, q } = req.query;
 
                 // Gate: only the logged-in user can call this
                 if (userEmail !== req.user.email) {
-                    return res.status(403).json({ message: "Forbidden Access" });
+                    return res
+                        .status(403)
+                        .json({ message: 'Forbidden Access' });
                 }
 
                 if (!start || !end) {
-                    return res.status(400).json({ message: "start and end (YYYY-MM-DD) are required" });
+                    return res.status(400).json({
+                        message: 'start and end (YYYY-MM-DD) are required',
+                    });
                 }
 
                 // Convert YYYY-MM-DD to ms (inclusive day window)
-                const startMs = new Date(start + "T00:00:00Z").getTime();
-                const endMs = new Date(end + "T23:59:59Z").getTime();
+                const startMs = new Date(start + 'T00:00:00Z').getTime();
+                const endMs = new Date(end + 'T23:59:59Z').getTime();
 
                 const match = {
                     $expr: {
                         $and: [
-                            { $gte: ["$checkInTime", startMs] },
-                            { $lte: ["$checkInTime", endMs] }
-                        ]
+                            { $gte: ['$checkInTime', startMs] },
+                            { $lte: ['$checkInTime', endMs] },
+                        ],
                     },
                 };
                 if (employeeEmail) match.email = employeeEmail;
@@ -3021,84 +3653,112 @@ async function run() {
                 const base = await attendanceCollections
                     .find(match)
                     .project({
-                        email: 1, fullName: 1, date: 1, month: 1,
-                        checkInTime: 1, checkOutTime: 1,
+                        email: 1,
+                        fullName: 1,
+                        date: 1,
+                        month: 1,
+                        checkInTime: 1,
+                        checkOutTime: 1,
                         workingHourInSeconds: 1,
                         workingDisplay: 1,
                         lateCheckIn: 1,
                         totalOTInSeconds: 1,
-                        displayOTHour: 1
+                        displayOTHour: 1,
                     })
                     .sort({ checkInTime: 1 })
                     .toArray();
 
                 // Optional simple text filter on name/email
                 const filtered = q
-                    ? base.filter(r =>
-                        (r.fullName || "").toLowerCase().includes(q.toLowerCase()) ||
-                        (r.email || "").toLowerCase().includes(q.toLowerCase())
-                    )
+                    ? base.filter(
+                          (r) =>
+                              (r.fullName || '')
+                                  .toLowerCase()
+                                  .includes(q.toLowerCase()) ||
+                              (r.email || '')
+                                  .toLowerCase()
+                                  .includes(q.toLowerCase())
+                      )
                     : base;
 
                 res.send(filtered);
             } catch (e) {
-                res.status(500).json({ message: "Failed to load attendance", error: e?.message });
+                res.status(500).json({
+                    message: 'Failed to load attendance',
+                    error: e?.message,
+                });
             }
         });
 
         // ************************************************************************************************
 
+        app.post(
+            '/uploadProfilePic',
+            upload.single('image'),
+            async (req, res) => {
+                try {
+                    const userEmail = req.body.email;
+                    const fileBuffer = req.file?.buffer;
 
+                    if (!fileBuffer || !userEmail) {
+                        return res
+                            .status(400)
+                            .send({ error: 'Missing file or email' });
+                    }
 
+                    const imageUrl = await uploadToCloudinary(fileBuffer);
 
-        app.post('/uploadProfilePic', upload.single('image'), async (req, res) => {
-            try {
-                const userEmail = req.body.email;
-                const fileBuffer = req.file?.buffer;
+                    const updateResult = await employeeCollections.updateOne(
+                        { email: userEmail },
+                        { $set: { photo: imageUrl } }
+                    );
 
+                    if (updateResult.modifiedCount === 0) {
+                        return res
+                            .status(404)
+                            .send({ error: 'Employee not found' });
+                    }
 
-                if (!fileBuffer || !userEmail) {
-                    return res.status(400).send({ error: 'Missing file or email' });
+                    res.send({
+                        message: 'Image uploaded successfully',
+                        url: imageUrl,
+                    });
+                } catch (error) {
+                    res.status(500).send({ error: 'Image upload failed' });
                 }
-
-                const imageUrl = await uploadToCloudinary(fileBuffer);
-
-                const updateResult = await employeeCollections.updateOne(
-                    { email: userEmail },
-                    { $set: { photo: imageUrl } }
-                );
-
-                if (updateResult.modifiedCount === 0) {
-                    return res.status(404).send({ error: 'Employee not found' });
-                }
-
-                res.send({ message: 'Image uploaded successfully', url: imageUrl });
-            } catch (error) {
-                res.status(500).send({ error: 'Image upload failed' });
             }
-        });
+        );
         // ************************************************************************************************
         // --- OT aggregation buckets ---
-        app.get("/admin/ot/list", verifyToken, async (req, res) => {
+        app.get('/admin/ot/list', verifyToken, async (req, res) => {
             try {
-                const { userEmail, start, end, employeeEmail, groupBy = "daily" } = req.query;
-                if (userEmail !== req.user.email) return res.status(401).json({ message: "Forbidden Access" });
+                const {
+                    userEmail,
+                    start,
+                    end,
+                    employeeEmail,
+                    groupBy = 'daily',
+                } = req.query;
+                if (userEmail !== req.user.email)
+                    return res
+                        .status(401)
+                        .json({ message: 'Forbidden Access' });
 
-                const startMs = new Date(start + "T00:00:00Z").getTime();
-                const endMs = new Date(end + "T23:59:59Z").getTime();
+                const startMs = new Date(start + 'T00:00:00Z').getTime();
+                const endMs = new Date(end + 'T23:59:59Z').getTime();
 
                 const match = {
                     $and: [
                         {
                             $expr: {
                                 $and: [
-                                    { $gte: ["$checkInTime", startMs] },
-                                    { $lte: ["$checkInTime", endMs] },
-                                ]
-                            }
-                        }
+                                    { $gte: ['$checkInTime', startMs] },
+                                    { $lte: ['$checkInTime', endMs] },
+                                ],
+                            },
+                        },
                     ],
-                    totalOTInSeconds: { $gt: 0 }
+                    totalOTInSeconds: { $gt: 0 },
                 };
                 if (employeeEmail) match.email = employeeEmail;
 
@@ -3106,36 +3766,62 @@ async function run() {
 
                 const fmt = (ts) => {
                     const d = new Date(ts);
-                    if (groupBy === "yearly") return `${d.getUTCFullYear()}`;
-                    if (groupBy === "monthly") return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-                    if (groupBy === "weekly") {
-                        const onejan = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-                        const week = Math.ceil((((d - onejan) / 86400000) + onejan.getUTCDay() + 1) / 7);
-                        return `${d.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+                    if (groupBy === 'yearly') return `${d.getUTCFullYear()}`;
+                    if (groupBy === 'monthly')
+                        return `${d.getUTCFullYear()}-${String(
+                            d.getUTCMonth() + 1
+                        ).padStart(2, '0')}`;
+                    if (groupBy === 'weekly') {
+                        const onejan = new Date(
+                            Date.UTC(d.getUTCFullYear(), 0, 1)
+                        );
+                        const week = Math.ceil(
+                            ((d - onejan) / 86400000 + onejan.getUTCDay() + 1) /
+                                7
+                        );
+                        return `${d.getUTCFullYear()}-W${String(week).padStart(
+                            2,
+                            '0'
+                        )}`;
                     }
                     // daily
-                    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+                    return `${d.getUTCFullYear()}-${String(
+                        d.getUTCMonth() + 1
+                    ).padStart(2, '0')}-${String(d.getUTCDate()).padStart(
+                        2,
+                        '0'
+                    )}`;
                 };
 
                 const map = new Map();
                 for (const r of all) {
-                    const bucket = fmt(r.checkInTime || r.otStartTime || Date.now());
+                    const bucket = fmt(
+                        r.checkInTime || r.otStartTime || Date.now()
+                    );
                     const key = `${bucket}|${r.email}`;
-                    const prev = map.get(key) || { bucket, email: r.email, fullName: r.fullName, totalOTInSeconds: 0 };
+                    const prev = map.get(key) || {
+                        bucket,
+                        email: r.email,
+                        fullName: r.fullName,
+                        totalOTInSeconds: 0,
+                    };
                     prev.totalOTInSeconds += r.totalOTInSeconds || 0;
                     map.set(key, prev);
                 }
 
-                const out = Array.from(map.values()).map(v => ({
+                const out = Array.from(map.values()).map((v) => ({
                     bucketLabel: v.bucket,
                     email: v.email,
                     fullName: v.fullName,
-                    totalOTInSeconds: v.totalOTInSeconds
+                    totalOTInSeconds: v.totalOTInSeconds,
                 }));
 
                 res.send(out);
             } catch (e) {
-                res.status(500).json({ message: "Failed to load OT", error: e?.message });
+                res.status(500).json({
+                    message: 'Failed to load OT',
+                    error: e?.message,
+                });
             }
         });
         // ************************************************************************************************
@@ -3145,26 +3831,33 @@ async function run() {
                 const result = await shareHoldersCollections.insertOne(data);
                 res.send(result);
             } catch (err) {
-                res.status(500).json({ message: "Error adding shareholder" });
+                res.status(500).json({ message: 'Error adding shareholder' });
             }
         });
 
         // ************************************************************************************************
-        app.get("/admin/designations", verifyToken, async (req, res) => {
+        app.get('/admin/designations', verifyToken, async (req, res) => {
             try {
                 const requestedEmail = req.query.userEmail;
                 const tokenEmail = req.user.email;
                 if (requestedEmail !== tokenEmail) {
-                    return res.status(403).send({ message: "Forbidden Access" });
+                    return res
+                        .status(403)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 if (!employeeCollections) {
                     // This happens if the route was registered outside run()
-                    return res.status(500).json({ message: "employeeCollections not initialized" });
+                    return res.status(500).json({
+                        message: 'employeeCollections not initialized',
+                    });
                 }
 
                 // distinct needs no filter, but pass {} explicitly
-                const list = await employeeCollections.distinct("designation", {});
+                const list = await employeeCollections.distinct(
+                    'designation',
+                    {}
+                );
                 const cleaned = (Array.isArray(list) ? list : [])
                     .filter(Boolean)
                     .map((v) => String(v))
@@ -3172,70 +3865,96 @@ async function run() {
 
                 res.send(cleaned);
             } catch (error) {
-                console.error("GET /admin/designations failed:", error); // <— add this
-                res.status(500).json({ message: "Failed to fetch designations" });
+                console.error('GET /admin/designations failed:', error); // <— add this
+                res.status(500).json({
+                    message: 'Failed to fetch designations',
+                });
             }
         });
 
-
         // ************************************************************************************************
-        app.put("/admin/employee/:id/designation", verifyToken, async (req, res) => {
-            try {
-                const requestedEmail = req.query.userEmail;
-                const tokenEmail = req.user.email;
-                if (requestedEmail !== tokenEmail) {
-                    return res.status(403).send({ message: "Forbidden Access" });
-                }
-
-                const { id } = req.params;
-                const { newDesignation } = req.body;
-
-                if (!ObjectId.isValid(id)) {
-                    return res.status(400).json({ message: "Invalid employee id" });
-                }
-                if (!newDesignation || typeof newDesignation !== "string") {
-                    return res.status(400).json({ message: "newDesignation is required" });
-                }
-
-                const emp = await employeeCollections.findOne({ _id: new ObjectId(id) });
-                if (!emp) return res.status(404).json({ message: "Employee not found" });
-
-                // 1) Update employee designation
-                await employeeCollections.updateOne(
-                    { _id: new ObjectId(id) },
-                    { $set: { designation: newDesignation } }
-                );
-
-                // 2) Upsert role in userCollections based on designation
-                const role = roleForDesignation(newDesignation);
-                if (emp.email) {
-                    const exists = await userCollections.findOne({ email: emp.email });
-                    if (exists) {
-                        await userCollections.updateOne({ email: emp.email }, { $set: { role } });
-                    } else {
-                        // fallback: create if missing
-                        await userCollections.insertOne({
-                            email: emp.email,
-                            role,
-                            userName: emp.fullName || "",
-                            profilePic: emp.photo || "",
-                        });
+        app.put(
+            '/admin/employee/:id/designation',
+            verifyToken,
+            async (req, res) => {
+                try {
+                    const requestedEmail = req.query.userEmail;
+                    const tokenEmail = req.user.email;
+                    if (requestedEmail !== tokenEmail) {
+                        return res
+                            .status(403)
+                            .send({ message: 'Forbidden Access' });
                     }
-                }
 
-                res.send({ success: true, newDesignation, role });
-            } catch (error) {
-                res.status(500).json({ message: "Failed to update designation", error: error?.message });
+                    const { id } = req.params;
+                    const { newDesignation } = req.body;
+
+                    if (!ObjectId.isValid(id)) {
+                        return res
+                            .status(400)
+                            .json({ message: 'Invalid employee id' });
+                    }
+                    if (!newDesignation || typeof newDesignation !== 'string') {
+                        return res
+                            .status(400)
+                            .json({ message: 'newDesignation is required' });
+                    }
+
+                    const emp = await employeeCollections.findOne({
+                        _id: new ObjectId(id),
+                    });
+                    if (!emp)
+                        return res
+                            .status(404)
+                            .json({ message: 'Employee not found' });
+
+                    // 1) Update employee designation
+                    await employeeCollections.updateOne(
+                        { _id: new ObjectId(id) },
+                        { $set: { designation: newDesignation } }
+                    );
+
+                    // 2) Upsert role in userCollections based on designation
+                    const role = roleForDesignation(newDesignation);
+                    if (emp.email) {
+                        const exists = await userCollections.findOne({
+                            email: emp.email,
+                        });
+                        if (exists) {
+                            await userCollections.updateOne(
+                                { email: emp.email },
+                                { $set: { role } }
+                            );
+                        } else {
+                            // fallback: create if missing
+                            await userCollections.insertOne({
+                                email: emp.email,
+                                role,
+                                userName: emp.fullName || '',
+                                profilePic: emp.photo || '',
+                            });
+                        }
+                    }
+
+                    res.send({ success: true, newDesignation, role });
+                } catch (error) {
+                    res.status(500).json({
+                        message: 'Failed to update designation',
+                        error: error?.message,
+                    });
+                }
             }
-        });
+        );
 
         // ************************************************************************************************
-        app.get("/notice/list", verifyToken, async (req, res) => {
+        app.get('/notice/list', verifyToken, async (req, res) => {
             try {
                 const requestedEmail = req.query.userEmail;
                 const tokenEmail = req.user.email;
                 if (requestedEmail !== tokenEmail) {
-                    return res.status(403).send({ message: "Forbidden Access" });
+                    return res
+                        .status(403)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 const list = await noticeBoardCollections
@@ -3245,57 +3964,87 @@ async function run() {
 
                 res.send(list);
             } catch (error) {
-                res.status(500).json({ message: "Failed to load notices" });
+                res.status(500).json({ message: 'Failed to load notices' });
             }
         });
 
         // ************************************************************************************************
         // GET /admin/pf-salary?userEmail=<admin>&employeeEmail=<emp>
-        app.get("/admin/pf-salary", verifyToken, async (req, res) => {
+        app.get('/admin/pf-salary', verifyToken, async (req, res) => {
             try {
                 const requestedEmail = req.query.userEmail;
                 if (requestedEmail !== req.user.email) {
-                    return res.status(403).send({ message: "Forbidden Access" });
+                    return res
+                        .status(403)
+                        .send({ message: 'Forbidden Access' });
                 }
                 const employeeEmail = req.query.employeeEmail;
-                if (!employeeEmail) return res.status(400).send({ message: "employeeEmail required" });
+                if (!employeeEmail)
+                    return res
+                        .status(400)
+                        .send({ message: 'employeeEmail required' });
 
-                const doc = await PFAndSalaryCollections.findOne({ email: employeeEmail });
+                const doc = await PFAndSalaryCollections.findOne({
+                    email: employeeEmail,
+                });
                 res.send(
                     doc
-                        ? { email: doc.email, salary: doc.salary, pfContribution: doc.pfContribution, pfStatus: doc.pfStatus }
-                        : { email: employeeEmail, salary: 0, pfContribution: 0, pfStatus: "inactive" }
+                        ? {
+                              email: doc.email,
+                              salary: doc.salary,
+                              pfContribution: doc.pfContribution,
+                              pfStatus: doc.pfStatus,
+                          }
+                        : {
+                              email: employeeEmail,
+                              salary: 0,
+                              pfContribution: 0,
+                              pfStatus: 'inactive',
+                          }
                 );
             } catch {
-                res.status(500).json({ message: "Failed to fetch PF/Salary" });
+                res.status(500).json({ message: 'Failed to fetch PF/Salary' });
             }
         });
 
         // ************************************************************************************************
-        app.get("/employee/leave-balance", verifyToken, async (req, res) => {
+        app.get('/employee/leave-balance', verifyToken, async (req, res) => {
             try {
                 const { userEmail } = req.query;
-                if (!userEmail) return res.status(400).json({ message: "userEmail is required" });
+                if (!userEmail)
+                    return res
+                        .status(400)
+                        .json({ message: 'userEmail is required' });
 
                 // same-user guard (tightest). If you want Admin override, add role check here.
                 const tokenEmail = req.user.email;
-                if (!tokenEmail) return res.status(401).json({ message: "Unauthorized" });
-                if (tokenEmail !== userEmail) return res.status(403).json({ message: "Forbidden" });
+                if (!tokenEmail)
+                    return res.status(401).json({ message: 'Unauthorized' });
+                if (tokenEmail !== userEmail)
+                    return res.status(403).json({ message: 'Forbidden' });
 
-                const doc = await leaveBalanceCollections.findOne({ email: userEmail });
+                const doc = await leaveBalanceCollections.findOne({
+                    email: userEmail,
+                });
 
                 if (!doc) return res.json([]);
 
                 // Map your schema: casualLeave, sickLeave are REMAINING days
                 const out = [
-                    { name: "Casual Leave", remaining: Number(doc.casualLeave ?? 0) },
-                    { name: "Sick Leave", remaining: Number(doc.sickLeave ?? 0) },
+                    {
+                        name: 'Casual Leave',
+                        remaining: Number(doc.casualLeave ?? 0),
+                    },
+                    {
+                        name: 'Sick Leave',
+                        remaining: Number(doc.sickLeave ?? 0),
+                    },
                 ];
 
                 return res.json(out);
             } catch (e) {
-                console.error("leave-balance error:", e);
-                return res.status(500).json({ message: "Server error" });
+                console.error('leave-balance error:', e);
+                return res.status(500).json({ message: 'Server error' });
             }
         });
         // ************************************************************************************************
@@ -3305,14 +4054,23 @@ async function run() {
                 const { userEmail, date, employeeEmail } = req.query;
 
                 if (userEmail !== req.user.email) {
-                    return res.status(403).send({ message: "Forbidden Access" });
+                    return res
+                        .status(403)
+                        .send({ message: 'Forbidden Access' });
                 }
                 if (!userEmail || !date) {
-                    return res.status(400).json({ message: 'userEmail and date are required' });
+                    return res
+                        .status(400)
+                        .json({ message: 'userEmail and date are required' });
                 }
 
                 const tz = 'Asia/Dhaka';
-                const m = moment.tz(date, ['YYYY-MM-DD', 'DD-MMM-YYYY'], true, tz);
+                const m = moment.tz(
+                    date,
+                    ['YYYY-MM-DD', 'DD-MMM-YYYY'],
+                    true,
+                    tz
+                );
                 if (!m.isValid()) {
                     return res.status(400).json({ message: 'Invalid date' });
                 }
@@ -3324,84 +4082,120 @@ async function run() {
                 const docs = await checkInCollections.find(query).toArray();
                 res.json(docs || []);
             } catch (e) {
-                res.status(500).json({ message: 'Failed to load check-ins', error: e.message });
+                res.status(500).json({
+                    message: 'Failed to load check-ins',
+                    error: e.message,
+                });
             }
         });
 
         // ************************************************************************************************
-        app.post("/notice/create", verifyToken, upload.single("file"), async (req, res) => {
-            try {
-                const requestedEmail = req.query.userEmail;
-                const tokenEmail = req.user.email;
-                if (requestedEmail !== tokenEmail) {
-                    return res.status(403).send({ message: "Forbidden Access" });
-                }
-
-                // Admin only
-                await ensureCanPostNotice(tokenEmail);
-
-                const { title, body, priority, effectiveDate, expiryDate, sendEmail } = req.body;
-                if (!title || !title.trim()) return res.status(400).json({ message: "Title is required" });
-
-                // upload PDF (optional)
-                let fileUrl = null;
-                if (req.file) {
-                    fileUrl = await uploadPdfBufferOrNull(req.file);
-                }
-
-                // author info
-                const emp = await employeeCollections.findOne({ email: tokenEmail }, { projection: { fullName: 1, email: 1 } });
-                const createdBy = {
-                    email: tokenEmail,
-                    fullName: emp?.fullName || "",
-                };
-
-                const now = new Date();
-                const doc = {
-                    title: String(title || "").trim(),
-                    body: String(body || "").trim(),
-                    priority: ["info", "high", "normal"].includes(String(priority)) ? priority : "normal",
-                    effectiveDate: effectiveDate ? new Date(effectiveDate) : now,
-                    expiryDate: expiryDate ? new Date(expiryDate) : null,
-                    fileUrl,
-                    fileName: req.file?.originalname || null,
-                    createdAt: now,
-                    createdBy,
-                };
-
-                const result = await noticeBoardCollections.insertOne(doc);
-
-                // optional email blast
-                if (String(sendEmail).toLowerCase() === "true") {
-                    try {
-                        await emailAllEmployees({
-                            title: doc.title,
-                            body: doc.body,
-                            fileUrl: doc.fileUrl,
-                            effectiveDate: doc.effectiveDate,
-                            createdBy,
-                        });
-                    } catch (mailErr) {
-                        // Don’t fail the API if email sending fails—just report
-                        console.error("Email send failed:", mailErr?.message || mailErr);
+        app.post(
+            '/notice/create',
+            verifyToken,
+            upload.single('file'),
+            async (req, res) => {
+                try {
+                    const requestedEmail = req.query.userEmail;
+                    const tokenEmail = req.user.email;
+                    if (requestedEmail !== tokenEmail) {
+                        return res
+                            .status(403)
+                            .send({ message: 'Forbidden Access' });
                     }
-                }
 
-                res.send({ insertedId: result.insertedId, ...doc });
-            } catch (error) {
-                const code = error?.status || 500;
-                res.status(code).json({ message: error?.message || "Failed to create notice" });
+                    // Admin only
+                    await ensureCanPostNotice(tokenEmail);
+
+                    const {
+                        title,
+                        body,
+                        priority,
+                        effectiveDate,
+                        expiryDate,
+                        sendEmail,
+                    } = req.body;
+                    if (!title || !title.trim())
+                        return res
+                            .status(400)
+                            .json({ message: 'Title is required' });
+
+                    // upload PDF (optional)
+                    let fileUrl = null;
+                    if (req.file) {
+                        fileUrl = await uploadPdfBufferOrNull(req.file);
+                    }
+
+                    // author info
+                    const emp = await employeeCollections.findOne(
+                        { email: tokenEmail },
+                        { projection: { fullName: 1, email: 1 } }
+                    );
+                    const createdBy = {
+                        email: tokenEmail,
+                        fullName: emp?.fullName || '',
+                    };
+
+                    const now = new Date();
+                    const doc = {
+                        title: String(title || '').trim(),
+                        body: String(body || '').trim(),
+                        priority: ['info', 'high', 'normal'].includes(
+                            String(priority)
+                        )
+                            ? priority
+                            : 'normal',
+                        effectiveDate: effectiveDate
+                            ? new Date(effectiveDate)
+                            : now,
+                        expiryDate: expiryDate ? new Date(expiryDate) : null,
+                        fileUrl,
+                        fileName: req.file?.originalname || null,
+                        createdAt: now,
+                        createdBy,
+                    };
+
+                    const result = await noticeBoardCollections.insertOne(doc);
+
+                    // optional email blast
+                    if (String(sendEmail).toLowerCase() === 'true') {
+                        try {
+                            await emailAllEmployees({
+                                title: doc.title,
+                                body: doc.body,
+                                fileUrl: doc.fileUrl,
+                                effectiveDate: doc.effectiveDate,
+                                createdBy,
+                            });
+                        } catch (mailErr) {
+                            // Don’t fail the API if email sending fails—just report
+                            console.error(
+                                'Email send failed:',
+                                mailErr?.message || mailErr
+                            );
+                        }
+                    }
+
+                    res.send({ insertedId: result.insertedId, ...doc });
+                } catch (error) {
+                    const code = error?.status || 500;
+                    res.status(code).json({
+                        message: error?.message || 'Failed to create notice',
+                    });
+                }
             }
-        });
+        );
 
         // ************************************************************************************************
         // NEW: toggle (or set) employee status. Accepts { status: "Active" | "De-activate" }
-        app.put("/admin/employee/:id/status", verifyToken, async (req, res) => {
+        app.put('/admin/employee/:id/status', verifyToken, async (req, res) => {
             try {
                 const requestedEmail = req.query.userEmail;
                 const tokenEmail = req.user.email;
                 if (requestedEmail !== tokenEmail) {
-                    return res.status(403).send({ message: "Forbidden Access" });
+                    return res
+                        .status(403)
+                        .send({ message: 'Forbidden Access' });
                 }
 
                 // gate by role
@@ -3409,13 +4203,22 @@ async function run() {
 
                 const { id } = req.params;
                 const { status } = req.body; // "Active" or "De-activate"
-                if (!ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid employee id" });
-                if (!["Active", "De-activate"].includes(String(status))) {
-                    return res.status(400).json({ message: "Invalid status" });
+                if (!ObjectId.isValid(id))
+                    return res
+                        .status(400)
+                        .json({ message: 'Invalid employee id' });
+                if (!['Active', 'De-activate'].includes(String(status))) {
+                    return res.status(400).json({ message: 'Invalid status' });
                 }
 
-                const emp = await employeeCollections.findOne({ _id: new ObjectId(id) }, { projection: { email: 1, fullName: 1, status: 1 } });
-                if (!emp) return res.status(404).json({ message: "Employee not found" });
+                const emp = await employeeCollections.findOne(
+                    { _id: new ObjectId(id) },
+                    { projection: { email: 1, fullName: 1, status: 1 } }
+                );
+                if (!emp)
+                    return res
+                        .status(404)
+                        .json({ message: 'Employee not found' });
 
                 await employeeCollections.updateOne(
                     { _id: new ObjectId(id) },
@@ -3424,38 +4227,45 @@ async function run() {
 
                 // create an in-app employee notification
                 if (emp.email) {
-                    const note = status === "De-activate"
-                        ? "Your account has been de-activated. You can no longer access the portal."
-                        : "Your account has been re-activated. You can access the portal again.";
+                    const note =
+                        status === 'De-activate'
+                            ? 'Your account has been de-activated. You can no longer access the portal.'
+                            : 'Your account has been re-activated. You can access the portal again.';
                     await employeeNotificationCollections.insertOne({
                         notification: note,
                         email: emp.email,
-                        link: "/",
+                        link: '/',
                         isRead: false,
-                        createdAt: new Date()
+                        createdAt: new Date(),
                     });
                 }
 
                 res.send({ success: true, status });
             } catch (error) {
-                res.status(error?.status || 500).json({ message: error?.message || "Failed to update status" });
+                res.status(error?.status || 500).json({
+                    message: error?.message || 'Failed to update status',
+                });
             }
         });
 
         // ************************************************************************************************
         // Update an order's editable fields (everything except status & userName)
         // Edit an existing local order (no status/user edits, and blocked if locked)
-        app.put("/orders/:id/edit", verifyToken, async (req, res) => {
+        app.put('/orders/:id/edit', verifyToken, async (req, res) => {
             try {
                 const requestedEmail = req.query.userEmail;
                 const tokenEmail = req.user.email;
                 if (requestedEmail !== tokenEmail) {
-                    return res.status(403).json({ message: "Forbidden Access" }); // stay consistent with other admin routes
+                    return res
+                        .status(403)
+                        .json({ message: 'Forbidden Access' }); // stay consistent with other admin routes
                 }
 
                 const { id } = req.params;
                 if (!ObjectId.isValid(id)) {
-                    return res.status(400).json({ message: "Invalid order id" });
+                    return res
+                        .status(400)
+                        .json({ message: 'Invalid order id' });
                 }
 
                 // find order and ensure not locked
@@ -3463,14 +4273,18 @@ async function run() {
                     { _id: new ObjectId(id) },
                     { projection: { isLocked: 1 } }
                 );
-                if (!order) return res.status(404).json({ message: "Order not found" });
+                if (!order)
+                    return res.status(404).json({ message: 'Order not found' });
                 if (
                     order.isLocked ||
-                    ["Completed", "Delivered"].includes(String(order.orderStatus))
+                    ['Completed', 'Delivered'].includes(
+                        String(order.orderStatus)
+                    )
                 ) {
-                    return res
-                        .status(423)
-                        .json({ message: "Order is locked/completed/delivered and cannot be edited." });
+                    return res.status(423).json({
+                        message:
+                            'Order is locked/completed/delivered and cannot be edited.',
+                    });
                 }
 
                 // Allowed fields (EXCLUDES orderStatus and userName)
@@ -3497,28 +4311,48 @@ async function run() {
                     const n = Number(orderPrice);
                     orderPrice = Number.isFinite(n) ? n : 0;
                 }
-                if (needServices !== undefined && !Array.isArray(needServices)) {
+                if (
+                    needServices !== undefined &&
+                    !Array.isArray(needServices)
+                ) {
                     needServices = []; // ensure array
                 }
 
                 const update = {
-                    ...(clientID !== undefined && { clientID: String(clientID) }),
-                    ...(orderName !== undefined && { orderName: String(orderName) }),
+                    ...(clientID !== undefined && {
+                        clientID: String(clientID),
+                    }),
+                    ...(orderName !== undefined && {
+                        orderName: String(orderName),
+                    }),
                     ...(orderQTY !== undefined && { orderQTY }),
                     ...(orderPrice !== undefined && { orderPrice }),
-                    ...(orderDeadLine !== undefined && { orderDeadLine: String(orderDeadLine) }),
-                    ...(orderInstructions !== undefined && { orderInstructions: String(orderInstructions) }),
+                    ...(orderDeadLine !== undefined && {
+                        orderDeadLine: String(orderDeadLine),
+                    }),
+                    ...(orderInstructions !== undefined && {
+                        orderInstructions: String(orderInstructions),
+                    }),
                     ...(needServices !== undefined && { needServices }),
-                    ...(returnFormat !== undefined && { returnFormat: String(returnFormat) }),
-                    ...(colorCode !== undefined && { colorCode: String(colorCode) }),
-                    ...(imageResize !== undefined && { imageResize: String(imageResize) }),
+                    ...(returnFormat !== undefined && {
+                        returnFormat: String(returnFormat),
+                    }),
+                    ...(colorCode !== undefined && {
+                        colorCode: String(colorCode),
+                    }),
+                    ...(imageResize !== undefined && {
+                        imageResize: String(imageResize),
+                    }),
                     ...(date !== undefined && { date: String(date) }),
                     lastUpdated: Date.now(),
                 };
 
                 // If nothing to update, short-circuit
-                if (Object.keys(update).length === 1) { // only lastUpdated present
-                    return res.status(200).json({ message: "No changes detected" });
+                if (Object.keys(update).length === 1) {
+                    // only lastUpdated present
+                    return res
+                        .status(200)
+                        .json({ message: 'No changes detected' });
                 }
 
                 const result = await localOrderCollections.updateOne(
@@ -3527,38 +4361,61 @@ async function run() {
                 );
 
                 if (result.modifiedCount === 0) {
-                    return res.status(200).json({ message: "No changes detected" });
+                    return res
+                        .status(200)
+                        .json({ message: 'No changes detected' });
                 }
 
-                res.json({ message: "Order updated successfully" });
+                res.json({ message: 'Order updated successfully' });
             } catch (err) {
-                res.status(500).json({ message: "Failed to update order", error: err?.message });
+                res.status(500).json({
+                    message: 'Failed to update order',
+                    error: err?.message,
+                });
             }
         });
 
-
         // ************************************************************************************************
         // --- SALARY PIN: set or change ---
-        app.post("/employee/salary-pin/set", async (req, res) => {
+        app.post('/employee/salary-pin/set', async (req, res) => {
             try {
                 const requestedEmail = req.query.userEmail;
 
                 const { currentPin, newPin } = req.body || {};
-                if (!newPin || typeof newPin !== "string" || newPin.length < 4 || newPin.length > 12) {
-                    return res.status(400).json({ message: "PIN must be 4-12 characters" });
+                if (
+                    !newPin ||
+                    typeof newPin !== 'string' ||
+                    newPin.length < 4 ||
+                    newPin.length > 12
+                ) {
+                    return res
+                        .status(400)
+                        .json({ message: 'PIN must be 4-12 characters' });
                 }
 
                 const emp = await employeeCollections.findOne(
                     { email: requestedEmail },
                     { projection: { salaryPinHash: 1 } }
                 );
-                if (!emp) return res.status(404).json({ message: "Employee not found" });
+                if (!emp)
+                    return res
+                        .status(404)
+                        .json({ message: 'Employee not found' });
 
                 // If a pin already exists, require currentPin
                 if (emp.salaryPinHash) {
-                    if (!currentPin) return res.status(400).json({ message: "Current PIN is required" });
-                    const ok = await bcrypt.compare(currentPin, emp.salaryPinHash);
-                    if (!ok) return res.status(401).json({ message: "Current PIN is incorrect" });
+                    if (!currentPin)
+                        return res
+                            .status(400)
+                            .json({ message: 'Current PIN is required' });
+                    const ok = await bcrypt.compare(
+                        currentPin,
+                        emp.salaryPinHash
+                    );
+                    if (!ok)
+                        return res
+                            .status(401)
+                            .json({ message: 'Current PIN is incorrect' });
                 }
 
                 const salt = await bcrypt.genSalt(10);
@@ -3569,90 +4426,99 @@ async function run() {
                     { $set: { salaryPinHash, salaryPinUpdatedAt: new Date() } }
                 );
 
-                res.json({ success: true, message: "PIN saved successfully" });
+                res.json({ success: true, message: 'PIN saved successfully' });
             } catch (e) {
-                res.status(500).json({ message: "Failed to set PIN" });
+                res.status(500).json({ message: 'Failed to set PIN' });
             }
         });
 
         // --- SALARY PIN: verify (unlock) ---
-        app.post("/employee/salary-pin/verify", async (req, res) => {
+        app.post('/employee/salary-pin/verify', async (req, res) => {
             try {
                 const requestedEmail = req.query.userEmail;
 
-
                 const { pin } = req.body || {};
-                if (!pin) return res.status(400).json({ message: "PIN required" });
+                if (!pin)
+                    return res.status(400).json({ message: 'PIN required' });
 
                 const emp = await employeeCollections.findOne(
                     { email: requestedEmail },
                     { projection: { salaryPinHash: 1 } }
                 );
                 if (!emp?.salaryPinHash) {
-                    return res.status(404).json({ message: "No PIN set" });
+                    return res.status(404).json({ message: 'No PIN set' });
                 }
 
                 const ok = await bcrypt.compare(pin, emp.salaryPinHash);
-                if (!ok) return res.status(401).json({ message: "Invalid PIN" });
+                if (!ok)
+                    return res.status(401).json({ message: 'Invalid PIN' });
 
                 res.json({ success: true });
             } catch (e) {
-                res.status(500).json({ message: "Failed to verify PIN" });
+                res.status(500).json({ message: 'Failed to verify PIN' });
             }
         });
 
         // ************************************************************************************************
         // Cancel an order: lock it and set status = "Cancel"
-        app.put("/orderStatusCancel/:orderId", async (req, res) => {
+        app.put('/orderStatusCancel/:orderId', async (req, res) => {
             try {
                 const id = req.params.orderId;
 
-                const order = await localOrderCollections.findOne({ _id: new ObjectId(id) });
-                if (!order) return res.status(404).json({ message: "Order not found" });
+                const order = await localOrderCollections.findOne({
+                    _id: new ObjectId(id),
+                });
+                if (!order)
+                    return res.status(404).json({ message: 'Order not found' });
 
                 // You may also want to freeze timers. We'll keep existing times as-is.
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
                     {
                         $set: {
-                            orderStatus: "Cancel",
-                            isLocked: true
-                        }
+                            orderStatus: 'Cancel',
+                            isLocked: true,
+                        },
                     }
                 );
 
                 res.send(result);
             } catch (error) {
-                res.status(500).json({ message: "Failed to cancel order" });
+                res.status(500).json({ message: 'Failed to cancel order' });
             }
         });
 
         // Restore a canceled order: unlock it and set status = "Pending"
-        app.put("/orderStatusRestore/:orderId", async (req, res) => {
+        app.put('/orderStatusRestore/:orderId', async (req, res) => {
             try {
                 const id = req.params.orderId;
 
-                const order = await localOrderCollections.findOne({ _id: new ObjectId(id) });
-                if (!order) return res.status(404).json({ message: "Order not found" });
+                const order = await localOrderCollections.findOne({
+                    _id: new ObjectId(id),
+                });
+                if (!order)
+                    return res.status(404).json({ message: 'Order not found' });
 
                 const result = await localOrderCollections.updateOne(
                     { _id: new ObjectId(id) },
                     {
                         $set: {
-                            orderStatus: "Pending",
-                            isLocked: false
-                        }
+                            orderStatus: 'Pending',
+                            isLocked: false,
+                        },
                     }
                 );
 
                 res.send(result);
             } catch (error) {
-                res.status(500).json({ message: "Failed to restore order" });
+                res.status(500).json({ message: 'Failed to restore order' });
             }
         });
 
-        // ************************************************************************************************
+        // fuyad's
+        app.use(router);
 
+        // ************************************************************************************************
 
         // ************************************************************************************************
 
@@ -3663,7 +4529,7 @@ async function run() {
         // ************************************************************************************************
 
         console.log(
-            "Pinged your deployment. You successfully connected to MongoDB!"
+            'Pinged your deployment. You successfully connected to MongoDB!'
         );
     } finally {
         // Ensures that the client will close when you finish/error
@@ -3671,11 +4537,6 @@ async function run() {
     }
 }
 run().catch(console.dir);
-
-
-
-
-
 
 // ************************************************************************************************
 // ************************************************************************************************
