@@ -137,6 +137,9 @@ async function run() {
         const mainTransactionCollections = database.collection(
             'mainTransactionList'
         );
+        const balanceCollection = client
+            .db('hrManagement')
+            .collection('loanBalance');
         const employeeCollections = database.collection('employeeList');
         const earningsCollections = database.collection('earningsList');
         const shiftingCollections = database.collection('shiftingList');
@@ -3142,87 +3145,76 @@ async function run() {
                 const { month, year, sharedAmount, userName, note } = req.body;
                 const date = new Date();
 
-                // ✅ Step 1: Validate request
-                if (!month || !year || !sharedAmount || !userName) {
+                // ✅ Parse shared amount safely
+                const amountToShare = parseFloat(sharedAmount) || 0;
+
+                // ✅ Step 1: Get all required balance data
+                const mainBalanceDoc = await mainBalanceCollections.findOne({});
+                const expenseDoc = await expenseCollections.findOne({});
+                const unpaidDoc = await unpaidCollections.findOne({});
+                const profitShareDoc = await profitShareCollections
+                    .aggregate([
+                        {
+                            $group: {
+                                _id: null,
+                                total: { $sum: '$sharedProfitBalance' },
+                            },
+                        },
+                    ])
+                    .toArray();
+                const loanBalanceDoc = await balanceCollection.findOne({});
+
+                // ✅ Step 2: Safely extract numeric values
+                const mainBalanceList = parseFloat(mainBalanceDoc?.total || 0);
+                const expenseList = parseFloat(expenseDoc?.total || 0);
+                const unpaidList = parseFloat(unpaidDoc?.total || 0);
+                const profitShareList = parseFloat(
+                    profitShareDoc?.[0]?.total || 0
+                );
+                const loanBalance = parseFloat(loanBalanceDoc?.total || 0);
+
+                // ✅ Step 3: Calculate final available amount
+                const finalAmount =
+                    mainBalanceList -
+                    expenseList -
+                    unpaidList -
+                    profitShareList +
+                    loanBalance;
+
+                // ✅ Step 4: Check if sufficient funds exist
+                if (finalAmount < amountToShare) {
                     return res.status(400).json({
-                        message: 'Missing required fields.',
+                        success: false,
+                        message: `Insufficient balance. Available: ${finalAmount}, Requested: ${amountToShare}`,
                     });
                 }
 
-                // ✅ Step 2: Find the monthly profit document
-                const monthDoc = await monthlyProfitCollections.findOne({
-                    month,
-                    year,
-                });
-                if (!monthDoc) {
-                    return res.status(404).json({
-                        message: `No profit record found for ${month} ${year}`,
-                    });
-                }
-
-                // ✅ Step 3: Check available profit
-                const remainingProfit = parseFloat(monthDoc.remaining || 0);
-                if (remainingProfit < parseFloat(sharedAmount)) {
-                    return res.status(400).json({
-                        message: `Insufficient profit balance. Available: ${remainingProfit}, Requested: ${sharedAmount}`,
-                    });
-                }
-
-                // ✅ Step 4: Find selected shareholder
-                const shareholder = await shareHoldersCollections.findOne({
-                    userName,
-                });
-                if (!shareholder) {
-                    return res.status(404).json({
-                        message: `No shareholder found with username "${userName}".`,
-                    });
-                }
-
-                // ✅ Step 5: Prepare profit share document
-                const profitShareDoc = {
-                    name: shareholder.shareHoldersName || '',
-                    mobile: shareholder.mobile || '',
-                    email: shareholder.email || '',
-                    sharedPercent: shareholder.sharePercent || null,
-                    sharedProfitBalance: parseFloat(sharedAmount),
-                    totalProfitBalance: parseFloat(monthDoc.profit),
+                // ✅ Step 5: Prepare document to insert
+                const profitShareDocToInsert = {
                     month,
                     year,
                     date,
-                    userName, // distributed by
-                    note: note || '', // optional note
+                    sharedProfitBalance: amountToShare,
+                    userName,
+                    note: note || '',
                 };
 
-                // ✅ Step 6: Insert record
+                // ✅ Step 6: Save record
                 const result = await profitShareCollections.insertOne(
-                    profitShareDoc
-                );
-
-                // ✅ Step 7: Deduct from remaining monthly profit
-                await monthlyProfitCollections.updateOne(
-                    { month, year },
-                    {
-                        $inc: { remaining: -parseFloat(sharedAmount) },
-                        $push: {
-                            shared: {
-                                date,
-                                amount: parseFloat(sharedAmount),
-                                to: shareholder.userName,
-                                note: note || '',
-                            },
-                        },
-                    }
+                    profitShareDocToInsert
                 );
 
                 res.json({
                     success: true,
-                    message: 'Profit distributed successfully',
-                    insertedCount: result.insertedId ? 1 : 0,
+                    message: 'Profit distribution record saved successfully',
+                    insertedId: result.insertedId,
+                    availableBalance: finalAmount - amountToShare,
                 });
             } catch (error) {
-                console.error('Error sharing profit:', error);
+                console.error('Error saving profit distribution:', error);
                 res.status(500).json({
-                    message: 'Failed to share monthly profit',
+                    success: false,
+                    message: 'Failed to save profit distribution',
                 });
             }
         });
