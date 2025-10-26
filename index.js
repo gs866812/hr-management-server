@@ -3139,83 +3139,91 @@ async function run() {
         // ************************************************************************************************
         app.post('/addMonthlyProfitDistribution', async (req, res) => {
             try {
-                const { month, year, sharedAmount, userName } = req.body;
+                const { month, year, sharedAmount, userName, note } = req.body;
                 const date = new Date();
 
+                // ✅ Step 1: Validate request
+                if (!month || !year || !sharedAmount || !userName) {
+                    return res.status(400).json({
+                        message: 'Missing required fields.',
+                    });
+                }
+
+                // ✅ Step 2: Find the monthly profit document
                 const monthDoc = await monthlyProfitCollections.findOne({
                     month,
                     year,
                 });
                 if (!monthDoc) {
-                    return res.json({
+                    return res.status(404).json({
                         message: `No profit record found for ${month} ${year}`,
                     });
                 }
 
-                if (parseFloat(monthDoc.profit) < parseFloat(sharedAmount)) {
-                    return res.json({
-                        message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${sharedAmount}`,
+                // ✅ Step 3: Check available profit
+                const remainingProfit = parseFloat(monthDoc.remaining || 0);
+                if (remainingProfit < parseFloat(sharedAmount)) {
+                    return res.status(400).json({
+                        message: `Insufficient profit balance. Available: ${remainingProfit}, Requested: ${sharedAmount}`,
                     });
                 }
 
-                const shares = [
-                    { email: 'asad4boss@gmail.com', percent: 36 },
-                    { email: 'masumkamal2024@gmail.com', percent: 22 },
-                    { email: 'arifulislamarif1971@gmail.com', percent: 22 },
-                    { email: 'kabiritnext@gmail.com', percent: 10 },
-                    { email: 'asad4graphics@gmail.com', percent: 10 },
-                ];
-
-                // Fetch full shareholder info from DB (assuming you have their data stored)
-                const shareholders = await shareHoldersCollections
-                    .find({
-                        email: { $in: shares.map((s) => s.email) },
-                    })
-                    .toArray();
-
-                const shareData = shares.map((s) => {
-                    const holder = shareholders.find(
-                        (h) => h.email === s.email
-                    );
-                    return {
-                        name: holder?.shareHoldersName || '',
-                        mobile: holder?.mobile || '',
-                        email: s.email,
-                        sharedPercent: s.percent,
-                        sharedProfitBalance: parseFloat(
-                            ((sharedAmount * s.percent) / 100).toFixed(2)
-                        ),
-                        totalProfitBalance: parseFloat(monthDoc.profit),
-                        month,
-                        year,
-                        date,
-                        userName,
-                    };
+                // ✅ Step 4: Find selected shareholder
+                const shareholder = await shareHoldersCollections.findOne({
+                    userName,
                 });
+                if (!shareholder) {
+                    return res.status(404).json({
+                        message: `No shareholder found with username "${userName}".`,
+                    });
+                }
 
-                const result = await profitShareCollections.insertMany(
-                    shareData
+                // ✅ Step 5: Prepare profit share document
+                const profitShareDoc = {
+                    name: shareholder.shareHoldersName || '',
+                    mobile: shareholder.mobile || '',
+                    email: shareholder.email || '',
+                    sharedPercent: shareholder.sharePercent || null,
+                    sharedProfitBalance: parseFloat(sharedAmount),
+                    totalProfitBalance: parseFloat(monthDoc.profit),
+                    month,
+                    year,
+                    date,
+                    userName, // distributed by
+                    note: note || '', // optional note
+                };
+
+                // ✅ Step 6: Insert record
+                const result = await profitShareCollections.insertOne(
+                    profitShareDoc
                 );
 
+                // ✅ Step 7: Deduct from remaining monthly profit
                 await monthlyProfitCollections.updateOne(
                     { month, year },
                     {
-                        $inc: { remaining: -sharedAmount },
+                        $inc: { remaining: -parseFloat(sharedAmount) },
                         $push: {
                             shared: {
                                 date,
                                 amount: parseFloat(sharedAmount),
+                                to: shareholder.userName,
+                                note: note || '',
                             },
                         },
                     }
                 );
 
-                res.send({
-                    message: 'Profit shared successfully',
-                    insertedCount: result.insertedCount,
+                res.json({
+                    success: true,
+                    message: 'Profit distributed successfully',
+                    insertedCount: result.insertedId ? 1 : 0,
                 });
             } catch (error) {
-                res.json({ message: 'Failed to share monthly profit' });
+                console.error('Error sharing profit:', error);
+                res.status(500).json({
+                    message: 'Failed to share monthly profit',
+                });
             }
         });
 
