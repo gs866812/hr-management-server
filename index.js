@@ -2738,6 +2738,177 @@ async function run() {
                 });
             }
         });
+        // ************************************************************************************************
+        // Get single earning by ID
+        app.get('/getSingleEarning/:id', async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                // Validate ObjectId
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Invalid earning ID',
+                    });
+                }
+
+                // Find earning record
+                const earning = await earningsCollections.findOne({
+                    _id: new ObjectId(id),
+                });
+
+                if (!earning) {
+                    return res.status(404).json({
+                        success: false,
+                        message: 'Earning not found',
+                    });
+                }
+
+                // Send back the earning
+                res.status(200).json({
+                    success: true,
+                    message: 'Earning fetched successfully',
+                    data: earning,
+                });
+            } catch (error) {
+                console.error('❌ Error fetching single earning:', error);
+                res.status(500).json({
+                    success: false,
+                    message: 'Failed to fetch earning',
+                    error: error.message,
+                });
+            }
+        });
+        // ************************************************************************************************
+
+        // ************************************************************************************************
+        // Update earning by ID (with secure validation)
+        app.put('/updateEarnings/:id', async (req, res) => {
+            try {
+                const { id } = req.params;
+                const updateData = req.body;
+
+                // 🧩 Validate ID
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Invalid earning ID',
+                    });
+                }
+
+                // 🧠 Fetch existing earning
+                const existing = await earningsCollections.findOne({
+                    _id: new ObjectId(id),
+                });
+                if (!existing) {
+                    return res.status(404).json({
+                        success: false,
+                        message: 'Earning record not found',
+                    });
+                }
+
+                // 🧮 Convert and validate numeric fields
+                const oldAmount = Number(existing.convertedBdt || 0);
+                const newAmount = Number(updateData.convertedBdt || 0);
+
+                if (isNaN(newAmount) || newAmount <= 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Invalid earning amount provided',
+                    });
+                }
+
+                // 🚫 Prevent update if amount unchanged
+                if (oldAmount === newAmount) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            'No change detected in amount — update not applied for security reasons.',
+                    });
+                }
+
+                // 🧾 Determine changed fields (only update if changed)
+                const fieldsToUpdate = {};
+                const allowedFields = [
+                    'month',
+                    'clientId',
+                    'imageQty',
+                    'totalUsd',
+                    'convertRate',
+                    'convertedBdt',
+                    'status',
+                ];
+
+                for (const key of allowedFields) {
+                    if (
+                        Object.prototype.hasOwnProperty.call(updateData, key) &&
+                        updateData[key] !== existing[key]
+                    ) {
+                        fieldsToUpdate[key] = updateData[key];
+                    }
+                }
+
+                if (Object.keys(fieldsToUpdate).length === 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'No valid fields changed.',
+                    });
+                }
+
+                // ✅ Update modifiedAt
+                fieldsToUpdate.updatedAt = new Date();
+
+                // 💰 Update the earnings record
+                const result = await earningsCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: fieldsToUpdate }
+                );
+
+                if (result.modifiedCount === 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Earning update failed. No changes applied.',
+                    });
+                }
+
+                // 🧾 Log or sync main balance changes if needed (optional)
+                const balanceDiff = newAmount - oldAmount;
+                if (balanceDiff !== 0) {
+                    await mainBalanceCollections.updateOne(
+                        {},
+                        { $inc: { mainBalance: balanceDiff } }
+                    );
+                    await mainTransactionCollections.insertOne({
+                        amount: Math.abs(balanceDiff),
+                        note: `Earning ${
+                            balanceDiff > 0 ? 'increased' : 'reduced'
+                        } for ${existing.clientId || 'Unknown Client'}`,
+                        date: new Date(),
+                        type:
+                            balanceDiff > 0
+                                ? 'Adjustment (+)'
+                                : 'Adjustment (-)',
+                    });
+                }
+
+                res.status(200).json({
+                    success: true,
+                    message: 'Earning updated successfully',
+                    changedFields: fieldsToUpdate,
+                    previousAmount: oldAmount,
+                    newAmount,
+                    balanceDiff,
+                });
+            } catch (error) {
+                console.error('❌ Error updating earning:', error);
+                res.status(500).json({
+                    success: false,
+                    message: 'Failed to update earning',
+                    error: error.message,
+                });
+            }
+        });
+        // ************************************************************************************************
 
         //earnings
 
@@ -3142,8 +3313,17 @@ async function run() {
         // ************************************************************************************************
         app.post('/addMonthlyProfitDistribution', async (req, res) => {
             try {
-                const { month, year, sharedAmount, userName, note, netAmount } =
-                    req.body;
+                const {
+                    month,
+                    year,
+                    sharedAmount,
+                    userName,
+                    note,
+                    netAmount,
+                    name,
+                    email,
+                    mobile,
+                } = req.body;
                 const date = new Date();
 
                 const amountToShare = parseFloat(sharedAmount) || 0;
@@ -3159,6 +3339,9 @@ async function run() {
 
                 // ✅ Step 5: Prepare document to insert
                 const profitShareDocToInsert = {
+                    name,
+                    email,
+                    mobile,
                     month,
                     year,
                     date,
