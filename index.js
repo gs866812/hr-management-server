@@ -3150,9 +3150,9 @@ async function run() {
 
                 // ✅ Step 1: Get all required balance data
                 const mainBalanceDoc = await mainBalanceCollections.findOne({});
-                const expenseDoc = await expenseCollections.findOne({});
-                const unpaidDoc = await unpaidCollections.findOne({});
-                const profitShareDoc = await profitShareCollections
+                const expenseDocs = await expenseCollections.find({}).toArray();
+                const unpaidDocs = await unpaidCollections.find({}).toArray();
+                const profitShareAgg = await profitShareCollections
                     .aggregate([
                         {
                             $group: {
@@ -3165,11 +3165,19 @@ async function run() {
                 const loanBalanceDoc = await balanceCollection.findOne({});
 
                 // ✅ Step 2: Safely extract numeric values
-                const mainBalanceList = parseFloat(mainBalanceDoc?.total || 0);
-                const expenseList = parseFloat(expenseDoc?.total || 0);
-                const unpaidList = parseFloat(unpaidDoc?.total || 0);
+                const mainBalanceList = parseFloat(
+                    mainBalanceDoc?.mainBalance || 0
+                );
+                const expenseList = expenseDocs.reduce(
+                    (sum, e) => sum + (parseFloat(e.expenseAmount) || 0),
+                    0
+                );
+                const unpaidList = unpaidDocs.reduce(
+                    (sum, u) => sum + (parseFloat(u.totalConvertedBdt) || 0),
+                    0
+                );
                 const profitShareList = parseFloat(
-                    profitShareDoc?.[0]?.total || 0
+                    profitShareAgg?.[0]?.total || 0
                 );
                 const loanBalance = parseFloat(loanBalanceDoc?.total || 0);
 
@@ -3181,11 +3189,24 @@ async function run() {
                     profitShareList +
                     loanBalance;
 
+                // Debug log for backend verification
+                console.log({
+                    mainBalanceList,
+                    expenseList,
+                    unpaidList,
+                    profitShareList,
+                    loanBalance,
+                    finalAmount,
+                    amountToShare,
+                });
+
                 // ✅ Step 4: Check if sufficient funds exist
                 if (finalAmount < amountToShare) {
                     return res.status(400).json({
                         success: false,
-                        message: `Insufficient balance. Available: ${finalAmount}, Requested: ${amountToShare}`,
+                        message: `Insufficient balance. Available: ${finalAmount.toFixed(
+                            2
+                        )}, Requested: ${amountToShare.toFixed(2)}`,
                     });
                 }
 
