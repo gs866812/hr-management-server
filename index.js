@@ -3142,69 +3142,16 @@ async function run() {
         // ************************************************************************************************
         app.post('/addMonthlyProfitDistribution', async (req, res) => {
             try {
-                const { month, year, sharedAmount, userName, note } = req.body;
+                const { month, year, sharedAmount, userName, note, netAmount } =
+                    req.body;
                 const date = new Date();
 
-                // ✅ Parse shared amount safely
                 const amountToShare = parseFloat(sharedAmount) || 0;
 
-                // ✅ Step 1: Get all required balance data
-                const mainBalanceDoc = await mainBalanceCollections.findOne({});
-                const expenseDocs = await expenseCollections.find({}).toArray();
-                const unpaidDocs = await unpaidCollections.find({}).toArray();
-                const profitShareAgg = await profitShareCollections
-                    .aggregate([
-                        {
-                            $group: {
-                                _id: null,
-                                total: { $sum: '$sharedProfitBalance' },
-                            },
-                        },
-                    ])
-                    .toArray();
-                const loanBalanceDoc = await balanceCollection.findOne({});
-
-                // ✅ Step 2: Safely extract numeric values
-                const mainBalanceList = parseFloat(
-                    mainBalanceDoc?.mainBalance || 0
-                );
-                const expenseList = expenseDocs.reduce(
-                    (sum, e) => sum + (parseFloat(e.expenseAmount) || 0),
-                    0
-                );
-                const unpaidList = unpaidDocs.reduce(
-                    (sum, u) => sum + (parseFloat(u.totalConvertedBdt) || 0),
-                    0
-                );
-                const profitShareList = parseFloat(
-                    profitShareAgg?.[0]?.total || 0
-                );
-                const loanBalance = parseFloat(loanBalanceDoc?.total || 0);
-
-                // ✅ Step 3: Calculate final available amount
-                const finalAmount =
-                    mainBalanceList -
-                    expenseList -
-                    unpaidList -
-                    profitShareList +
-                    loanBalance;
-
-                // Debug log for backend verification
-                console.log({
-                    mainBalanceList,
-                    expenseList,
-                    unpaidList,
-                    profitShareList,
-                    loanBalance,
-                    finalAmount,
-                    amountToShare,
-                });
-
-                // ✅ Step 4: Check if sufficient funds exist
-                if (finalAmount < amountToShare) {
+                if (netAmount < amountToShare) {
                     return res.status(400).json({
                         success: false,
-                        message: `Insufficient balance. Available: ${finalAmount.toFixed(
+                        message: `Insufficient balance. Available: ${netAmount.toFixed(
                             2
                         )}, Requested: ${amountToShare.toFixed(2)}`,
                     });
@@ -3229,7 +3176,7 @@ async function run() {
                     success: true,
                     message: 'Profit distribution record saved successfully',
                     insertedId: result.insertedId,
-                    availableBalance: finalAmount - amountToShare,
+                    availableBalance: netAmount - amountToShare,
                 });
             } catch (error) {
                 console.error('Error saving profit distribution:', error);
