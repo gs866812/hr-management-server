@@ -2660,6 +2660,72 @@ async function run() {
                 res.status(500).json({ message: 'Failed to fetch balance' });
             }
         });
+
+        // ✅ GET /clientDetails/:clientId — fetch client info + payment history with pagination
+        app.get('/clientDetails/:clientId', async (req, res) => {
+            try {
+                const clientId = req.params.clientId;
+                const page = parseInt(req.query.page) || 1;
+                const limit = parseInt(req.query.limit) || 10;
+                const search = req.query.search || '';
+                console.log('clientId', clientId);
+                // Find client info
+                const client = await clientCollections.findOne({
+                    clientID: clientId,
+                });
+                if (!client) {
+                    return res
+                        .status(404)
+                        .json({ message: 'Client not found' });
+                }
+
+                // Search payment history (inside earningsList)
+                const query = {
+                    clientId: clientId,
+                    ...(search
+                        ? {
+                              $or: [
+                                  {
+                                      projectName: {
+                                          $regex: search,
+                                          $options: 'i',
+                                      },
+                                  },
+                                  { status: { $regex: search, $options: 'i' } },
+                                  { month: { $regex: search, $options: 'i' } },
+                              ],
+                          }
+                        : {}),
+                };
+
+                const total = await earningsCollections.countDocuments(query);
+                const payments = await earningsCollections
+                    .find(query)
+                    .sort({ date: -1 })
+                    .skip((page - 1) * limit)
+                    .limit(limit)
+                    .toArray();
+
+                res.json({
+                    success: true,
+                    client,
+                    payments,
+                    pagination: {
+                        page,
+                        limit,
+                        total,
+                        totalPages: Math.ceil(total / limit),
+                    },
+                });
+            } catch (error) {
+                console.error('Error fetching client details:', error);
+                res.status(500).json({
+                    success: false,
+                    message: 'Server error fetching client details',
+                });
+            }
+        });
+
         // ************************************************************************************************
         //getEarnings
         app.get('/getEarnings', verifyToken, async (req, res) => {
@@ -2809,21 +2875,12 @@ async function run() {
 
                 // 🧮 Convert and validate numeric fields
                 const oldAmount = Number(existing.convertedBdt || 0);
-                const newAmount = Number(updateData.convertedBdt || 0);
+                const newAmount = Number(updateData.convertedBdt || oldAmount);
 
                 if (isNaN(newAmount) || newAmount <= 0) {
                     return res.status(400).json({
                         success: false,
                         message: 'Invalid earning amount provided',
-                    });
-                }
-
-                // 🚫 Prevent update if amount unchanged
-                if (oldAmount === newAmount) {
-                    return res.status(400).json({
-                        success: false,
-                        message:
-                            'No change detected in amount — update not applied for security reasons.',
                     });
                 }
 
@@ -2836,7 +2893,6 @@ async function run() {
                     'totalUsd',
                     'convertRate',
                     'convertedBdt',
-                    'status',
                 ];
 
                 for (const key of allowedFields) {
@@ -2848,6 +2904,7 @@ async function run() {
                     }
                 }
 
+                // 🚫 No valid fields changed
                 if (Object.keys(fieldsToUpdate).length === 0) {
                     return res.status(400).json({
                         success: false,
@@ -2871,8 +2928,12 @@ async function run() {
                     });
                 }
 
-                // 🧾 Log or sync main balance changes if needed (optional)
-                const balanceDiff = newAmount - oldAmount;
+                // 🔁 Adjust main balance **only if convertedBdt actually changed**
+                const balanceDiff =
+                    fieldsToUpdate.convertedBdt !== undefined
+                        ? newAmount - oldAmount
+                        : 0;
+
                 if (balanceDiff !== 0) {
                     await mainBalanceCollections.updateOne(
                         {},
@@ -2908,6 +2969,7 @@ async function run() {
                 });
             }
         });
+
         // ************************************************************************************************
 
         //earnings
