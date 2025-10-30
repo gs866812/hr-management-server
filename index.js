@@ -1881,8 +1881,8 @@ async function run() {
         app.put('/changeEarningStatus/:id', async (req, res) => {
             try {
                 const { id } = req.params;
-                let { year, month: bodyMonth, newStatus,  } = req.body || {};
-                console.log(req.body)
+                let { year, month: bodyMonth, newStatus } = req.body || {};
+                console.log(req.body);
 
                 if (!ObjectId.isValid(id)) {
                     return res.status(400).json({
@@ -3270,40 +3270,30 @@ async function run() {
                     100
                 );
 
-                // Build $match
                 const match = {};
-
-                // Exact client filter
                 if (clientId) match.clientID = String(clientId).trim();
 
-                // Month filter: accept 'august'/'August'/etc
+                // ✅ optional month filter (only works if 'month' exists or convertable date)
                 if (month) {
-                    const wanted = String(month).trim().toLowerCase(); // e.g., 'august'
-                    // We’ll compute a derivedMonth and match that below with $expr
+                    const wanted = String(month).trim().toLowerCase();
                     match.$expr = {
                         $eq: [
                             {
                                 $toLower: {
                                     $ifNull: [
-                                        '$month', // preferred if orders already store month text
+                                        '$month',
                                         {
-                                            // else derive from orderDate or createdAt
                                             $dateToString: {
                                                 date: {
                                                     $ifNull: [
                                                         {
                                                             $toDate:
                                                                 '$orderDate',
-                                                        }, // if stored as ISO/string
-                                                        {
-                                                            $ifNull: [
-                                                                '$createdAt',
-                                                                '$$NOW',
-                                                            ],
                                                         },
+                                                        { $toDate: '$date' }, // fallback for your string date field
                                                     ],
                                                 },
-                                                format: '%B', // Full month name (e.g., "August")
+                                                format: '%B',
                                             },
                                         },
                                     ],
@@ -3314,7 +3304,6 @@ async function run() {
                     };
                 }
 
-                // Text search (regex) across a few fields
                 const searchText = String(search || '').trim();
                 const searchRegex = searchText
                     ? new RegExp(
@@ -3325,69 +3314,22 @@ async function run() {
 
                 const pipeline = [];
 
-                // Optional join to clients (for country search)
-                pipeline.push({
-                    $lookup: {
-                        from: 'clientList',
-                        localField: 'clientID',
-                        foreignField: 'clientID',
-                        as: 'clientDoc',
-                    },
-                });
-
-                pipeline.push({
-                    $addFields: {
-                        // derive a month label if needed
-                        _derivedMonth: {
-                            $ifNull: [
-                                '$month',
-                                {
-                                    $dateToString: {
-                                        date: {
-                                            $ifNull: [
-                                                { $toDate: '$orderDate' },
-                                                {
-                                                    $ifNull: [
-                                                        '$createdAt',
-                                                        '$$NOW',
-                                                    ],
-                                                },
-                                            ],
-                                        },
-                                        format: '%B',
-                                    },
-                                },
-                            ],
-                        },
-                        _country: {
-                            $ifNull: [
-                                { $arrayElemAt: ['$clientDoc.country', 0] },
-                                '',
-                            ],
-                        },
-                    },
-                });
-
-                // Match block (clientId/month)
                 if (Object.keys(match).length) pipeline.push({ $match: match });
 
-                // Search filter
                 if (searchRegex) {
                     pipeline.push({
                         $match: {
                             $or: [
                                 { clientID: searchRegex },
                                 { orderName: searchRegex },
-                                { status: searchRegex },
-                                { _country: searchRegex },
+                                { orderStatus: searchRegex }, // ✅ correct field
                             ],
                         },
                     });
                 }
 
-                // Total count (before paging)
                 pipeline.push(
-                    { $sort: { createdAt: -1, orderDate: -1, _id: -1 } },
+                    { $sort: { lastUpdated: -1, _id: -1 } },
                     {
                         $facet: {
                             items: [
@@ -3398,34 +3340,13 @@ async function run() {
                                         _id: 1,
                                         clientID: 1,
                                         orderName: 1,
-                                        status: 1,
-                                        imageQty: 1,
-                                        // Try to keep your naming consistent with the rest of app:
-                                        totalUsd: {
-                                            $ifNull: [
-                                                '$totalUsd',
-                                                {
-                                                    $ifNull: [
-                                                        '$priceUSD',
-                                                        '$totalDollar',
-                                                    ],
-                                                },
-                                            ],
-                                        },
-                                        convertRate: 1,
-                                        convertedBdt: {
-                                            $ifNull: [
-                                                '$convertedBdt',
-                                                '$totalBdt',
-                                            ],
-                                        },
-                                        orderDate: 1,
-                                        createdAt: 1,
-                                        month: '$_derivedMonth',
-                                        country: '$_country',
-                                        isLocked: {
-                                            $ifNull: ['$isLocked', false],
-                                        },
+                                        orderStatus: 1,
+                                        orderQTY: 1,
+                                        orderPrice: 1,
+                                        date: 1,
+                                        needServices: 1,
+                                        returnFormat: 1,
+                                        orderDeadLine: 1,
                                     },
                                 },
                             ],
@@ -3454,6 +3375,119 @@ async function run() {
                     success: false,
                     message: 'Failed to fetch client orders',
                     error: err.message,
+                });
+            }
+        });
+
+        // ✅ GET CLIENT EARNINGS (with search + pagination)
+        app.get('/getClientEarnings', verifyToken, async (req, res) => {
+            try {
+                const {
+                    clientId = '',
+                    page = 1,
+                    size = 10,
+                    search = '',
+                    month = '',
+                } = req.query;
+
+                const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+                const pageSize = Math.min(
+                    Math.max(parseInt(size, 10) || 10, 1),
+                    100
+                );
+
+                if (!clientId) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Client ID is required.',
+                    });
+                }
+
+                const match = { clientId: clientId.trim() };
+
+                // ✅ Month filter (e.g. August)
+                if (month) {
+                    match.month = { $regex: new RegExp(`^${month}$`, 'i') };
+                }
+
+                // ✅ Search regex (matches clientId, month, status, date)
+                const searchText = search.trim();
+                const searchRegex = searchText
+                    ? new RegExp(
+                          searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+                          'i'
+                      )
+                    : null;
+
+                if (searchRegex) {
+                    match.$or = [
+                        { clientId: searchRegex },
+                        { month: searchRegex },
+                        { status: searchRegex },
+                        { date: searchRegex },
+                    ];
+                }
+
+                // ✅ Count total results
+                const totalCount = await earningsCollections.countDocuments(
+                    match
+                );
+
+                // ✅ Fetch paginated results
+                const result = await earningsCollections
+                    .find(match)
+                    .skip((pageNum - 1) * pageSize)
+                    .limit(pageSize)
+                    .sort({ createdAt: -1, _id: -1 })
+                    .toArray();
+
+                // ✅ Aggregate totals (for summary)
+                const totals = await earningsCollections
+                    .aggregate([
+                        { $match: match },
+                        {
+                            $group: {
+                                _id: null,
+                                totalImageQty: {
+                                    $sum: { $ifNull: ['$imageQty', 0] },
+                                },
+                                totalUsd: {
+                                    $sum: { $ifNull: ['$totalUsd', 0] },
+                                },
+                                totalRate: {
+                                    $sum: { $ifNull: ['$convertRate', 0] },
+                                },
+                                totalBdt: {
+                                    $sum: { $ifNull: ['$convertedBdt', 0] },
+                                },
+                                countRate: { $sum: 1 },
+                            },
+                        },
+                    ])
+                    .toArray();
+
+                res.status(200).json({
+                    success: true,
+                    result,
+                    count: totalCount,
+                    page: pageNum,
+                    size: pageSize,
+                    totalPages: Math.ceil(totalCount / pageSize) || 1,
+                    totalSummary: {
+                        totalImageQty: totals[0]?.totalImageQty || 0,
+                        totalUsd: totals[0]?.totalUsd || 0,
+                        avgRate: totals[0]
+                            ? totals[0].totalRate / (totals[0].countRate || 1)
+                            : 0,
+                        totalBdt: totals[0]?.totalBdt || 0,
+                    },
+                });
+            } catch (error) {
+                console.error('❌ /getClientEarnings error:', error);
+                res.status(500).json({
+                    success: false,
+                    message: 'Failed to fetch client earnings.',
+                    error: error.message,
                 });
             }
         });
@@ -3632,14 +3666,7 @@ async function run() {
         //getEarnings
         app.get('/getEarnings', verifyToken, async (req, res) => {
             try {
-                const userMail = req.query.userEmail;
                 const email = req.user.email;
-
-                if (userMail !== email) {
-                    return res
-                        .status(401)
-                        .send({ message: 'Forbidden Access' });
-                }
 
                 const page = parseInt(req.query.page) || 1;
                 const size = parseInt(req.query.size) || 10;
