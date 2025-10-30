@@ -632,22 +632,22 @@ async function run() {
         });
         // ************************************************************************************************
         // at top of your index.js (if not already)
-
         app.post('/addEarnings', async (req, res) => {
             try {
-                // Incoming from WithdrawModal
                 const {
                     month: rawMonth,
                     clientId,
-                    totalDollar,
+                    totalUsd,
                     charge,
                     receivable,
-                    rate,
+                    convertRate,
                     imageQty,
-                    bdtAmount,
+                    convertedBdt,
                     status, // "Paid" | "Unpaid"
+                    userEmail,
                 } = req.body || {};
 
+                // 🧱 Validate required fields
                 if (!rawMonth)
                     return res
                         .status(400)
@@ -663,45 +663,46 @@ async function run() {
                         message: 'Status is required',
                     });
 
-                // Normalize & parse
+                // 🧮 Normalize & parse
                 const month = String(rawMonth).toLowerCase(); // e.g. "august"
-                const usdTotal = Number(totalDollar) || 0;
+                const usdTotal = Number(totalUsd) || 0;
                 const usdCharge = Number(charge) || 0;
                 const usdReceivable =
                     Number(receivable) || Math.max(0, usdTotal - usdCharge);
-                const convertRate = Number(rate) || 0;
+                const rate = Number(convertRate) || 0;
                 const earningsAmount =
-                    Number(bdtAmount) ||
-                    Number((usdReceivable * convertRate).toFixed(2)); // BDT
+                    Number(convertedBdt) ||
+                    Number((usdReceivable * rate).toFixed(2)); // BDT
 
-                // Date (Asia/Dhaka)
+                // 🕒 Date (Asia/Dhaka)
                 const nowDhaka = moment().tz('Asia/Dhaka');
                 const date = nowDhaka.format('DD-MM-YYYY');
                 const year = nowDhaka.format('YYYY');
 
-                // Build the stored doc
+                // 🧾 Build stored document
                 const fullData = {
                     month,
                     year,
-                    imageQty,
-                    clientID: clientId, // keep consistent key
+                    imageQty: Number(imageQty) || 0,
+                    clientId: String(clientId),
                     status, // Paid/Unpaid
-                    totalDollar: usdTotal,
+                    totalUsd: usdTotal,
                     charge: usdCharge,
                     receivable: usdReceivable,
-                    rate: convertRate,
-                    convertedBdt: earningsAmount, // keep legacy-friendly key
-                    date, // DD-MM-YYYY (Asia/Dhaka)
-                    createdAt: new Date(), // raw ISO
-                    ...req.body, // keep any extra fields you send
+                    convertRate: rate,
+                    convertedBdt: earningsAmount,
+                    date, // human-readable
+                    createdAt: new Date(),
+                    userEmail: userEmail || '',
                 };
 
-                // 1) Track UNPAID monthly bucket (only if Unpaid)
+                // 🪙 1) Track unpaid monthly bucket (only if Unpaid)
                 if (status === 'Unpaid') {
                     const findMonth = await unpaidCollections.findOne({
                         month,
                         year,
                     });
+
                     if (findMonth) {
                         await unpaidCollections.updateOne(
                             { month, year },
@@ -718,11 +719,12 @@ async function run() {
                     }
                 }
 
-                // 2) Monthly profit buckets (earnings/remaining gets increased regardless of Paid/Unpaid,
-                //    if you only want Paid to count as profit, change this to status === 'Paid')
-                const findMonthInMonthlyProfit =
-                    await monthlyProfitCollections.findOne({ month, year });
-                if (findMonthInMonthlyProfit) {
+                // 💰 2) Monthly profit tracking
+                const findMonthProfit = await monthlyProfitCollections.findOne({
+                    month,
+                    year,
+                });
+                if (findMonthProfit) {
                     await monthlyProfitCollections.updateOne(
                         { month, year },
                         {
@@ -747,10 +749,10 @@ async function run() {
                     });
                 }
 
-                // 3) Add earnings record
+                // 🧾 3) Insert earnings record
                 const result = await earningsCollections.insertOne(fullData);
 
-                // 4) Only when Paid → hit main balance + transactions + client history
+                // 🏦 4) When Paid → main balance, transactions, and client history
                 if (status === 'Paid') {
                     await mainBalanceCollections.updateOne(
                         {},
@@ -760,16 +762,16 @@ async function run() {
 
                     await mainTransactionCollections.insertOne({
                         amount: earningsAmount,
-                        note: `Earnings from ${clientId}`,
+                        note: `Earnings from Client_${clientId}`,
                         date: new Date(),
                         type: 'Earning',
                         meta: {
                             month,
                             year,
-                            clientID: clientId,
+                            clientId,
                             currency: 'BDT',
                             usdReceivable,
-                            rate: convertRate,
+                            rate,
                         },
                     });
 
@@ -785,7 +787,7 @@ async function run() {
                     insertedId: result.insertedId,
                 });
             } catch (error) {
-                console.error('addEarnings error:', error);
+                console.error('❌ addEarnings error:', error);
                 return res.status(500).json({
                     success: false,
                     message: 'Failed to add earnings',
@@ -1879,7 +1881,8 @@ async function run() {
         app.put('/changeEarningStatus/:id', async (req, res) => {
             try {
                 const { id } = req.params;
-                let { year, month: bodyMonth, newStatus } = req.body || {};
+                let { year, month: bodyMonth, newStatus,  } = req.body || {};
+                console.log(req.body)
 
                 if (!ObjectId.isValid(id)) {
                     return res.status(400).json({
@@ -3090,10 +3093,11 @@ async function run() {
 
         app.get('/getClientsByMonth', verifyToken, async (req, res) => {
             try {
+                // 🔐 Auth check
                 if (!req.user || !req.user.email) {
                     return res
                         .status(401)
-                        .send({ message: 'Unauthorized Access' });
+                        .json({ message: 'Unauthorized Access' });
                 }
 
                 const userMail = req.query.userEmail;
@@ -3101,7 +3105,7 @@ async function run() {
                 if (userMail !== email) {
                     return res
                         .status(403)
-                        .send({ message: 'Forbidden Access' });
+                        .json({ message: 'Forbidden Access' });
                 }
 
                 const selectedMonth = req.query.selectedMonth?.toLowerCase();
@@ -3125,6 +3129,7 @@ async function run() {
                     november: 11,
                     december: 12,
                 };
+
                 const selectedMonthNum = monthMap[selectedMonth];
                 if (!selectedMonthNum) {
                     return res
@@ -3132,45 +3137,41 @@ async function run() {
                         .json({ message: 'Invalid month name' });
                 }
 
-                // Aggregation pipeline
+                // 🕒 Get current year
+                const currentYear = new Date().getFullYear();
+
+                // 🧮 Aggregation pipeline (fast and minimal)
                 const pipeline = [
-                    {
-                        $addFields: {
-                            _tryISO: {
-                                $convert: {
-                                    input: '$date',
-                                    to: 'date',
-                                    onError: null,
-                                    onNull: null,
-                                },
-                            },
-                            _tryDmyMon: {
-                                $dateFromString: {
-                                    dateString: '$date',
-                                    format: '%d-%b-%Y',
-                                    onError: null,
-                                    onNull: null,
-                                },
-                            },
-                            _tryDmyDash: {
-                                $dateFromString: {
-                                    dateString: '$date',
-                                    format: '%d-%m-%Y',
-                                    onError: null,
-                                    onNull: null,
-                                },
-                            },
-                        },
-                    },
                     {
                         $addFields: {
                             parsedDate: {
                                 $ifNull: [
-                                    '$_tryISO',
+                                    {
+                                        $convert: {
+                                            input: '$date',
+                                            to: 'date',
+                                            onError: null,
+                                            onNull: null,
+                                        },
+                                    },
                                     {
                                         $ifNull: [
-                                            '$_tryDmyMon',
-                                            '$_tryDmyDash',
+                                            {
+                                                $dateFromString: {
+                                                    dateString: '$date',
+                                                    format: '%d-%b-%Y',
+                                                    onError: null,
+                                                    onNull: null,
+                                                },
+                                            },
+                                            {
+                                                $dateFromString: {
+                                                    dateString: '$date',
+                                                    format: '%d-%m-%Y',
+                                                    onError: null,
+                                                    onNull: null,
+                                                },
+                                            },
                                         ],
                                     },
                                 ],
@@ -3186,12 +3187,13 @@ async function run() {
                     {
                         $match: {
                             month: selectedMonthNum,
+                            year: currentYear,
                         },
                     },
                     {
                         $group: {
                             _id: '$clientID',
-                            totalDollar: {
+                            totalUsd: {
                                 $sum: {
                                     $cond: [
                                         { $isNumber: '$orderPrice' },
@@ -3204,51 +3206,46 @@ async function run() {
                                     ],
                                 },
                             },
-                            orders: { $push: '$$ROOT' },
-                        },
-                    },
-                    {
-                        $lookup: {
-                            from: 'clientList',
-                            localField: '_id',
-                            foreignField: 'clientID',
-                            as: 'clientInfo',
-                        },
-                    },
-                    {
-                        $unwind: {
-                            path: '$clientInfo',
-                            preserveNullAndEmptyArrays: true,
+                            imageQty: {
+                                $sum: {
+                                    $cond: [
+                                        { $isNumber: '$orderQTY' },
+                                        '$orderQTY',
+                                        {
+                                            $toInt: {
+                                                $ifNull: ['$orderQTY', 0],
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
                         },
                     },
                     {
                         $project: {
-                            clientID: '$_id',
                             _id: 0,
-                            totalDollar: 1,
-                            country: '$clientInfo.country',
-                            clientInfo: {
-                                clientID: '$clientInfo.clientID',
-                                country: '$clientInfo.country',
-                            },
+                            clientID: '$_id',
+                            totalUsd: { $round: ['$totalUsd', 2] },
+                            imageQty: 1,
                         },
                     },
-                    { $sort: { totalDollar: -1 } },
+                    { $sort: { totalUsd: -1 } },
                 ];
 
                 const results = await localOrderCollections
                     .aggregate(pipeline)
                     .toArray();
 
-                res.status(200).json({
+                return res.status(200).json({
                     success: true,
                     month: selectedMonth,
+                    year: currentYear,
                     totalClients: results.length,
                     clients: results,
                 });
             } catch (error) {
                 console.error('❌ /getClientsByMonth error:', error);
-                res.status(500).json({
+                return res.status(500).json({
                     success: false,
                     message: 'Failed to fetch client data by month',
                     error: error.message,
@@ -3758,146 +3755,85 @@ async function run() {
             try {
                 const { id } = req.params;
 
-                if (!ObjectId.isValid(id)) {
+                if (!ObjectId.isValid(id))
                     return res.status(400).json({
                         success: false,
                         message: 'Invalid earning ID',
                     });
-                }
 
-                // ---- Load existing
                 const existing = await earningsCollections.findOne({
                     _id: new ObjectId(id),
                 });
-                if (!existing) {
-                    return res.status(404).json({
-                        success: false,
-                        message: 'Earning record not found',
-                    });
-                }
+                if (!existing)
+                    return res
+                        .status(404)
+                        .json({ success: false, message: 'Earning not found' });
 
-                // ---- Normalize incoming
-                const raw = req.body || {};
-                // accept both clientId / clientID from client
-                if (raw.clientID && !raw.clientId) raw.clientId = raw.clientID;
+                const body = req.body || {};
+                const num = (v, def = 0) =>
+                    Number.isFinite(Number(v)) ? Number(v) : def;
 
-                // month normalization (store lowercase)
-                if (typeof raw.month === 'string')
-                    raw.month = raw.month.toLowerCase();
-
-                // numbers
-                const num = (v, def = 0) => {
-                    const n = Number(v);
-                    return Number.isFinite(n) ? n : def;
-                };
-
-                // rebuild convertedBdt if not provided but USD/rate changed
                 const incoming = {
-                    month: raw.month,
-                    clientId: raw.clientId,
-                    imageQty:
-                        raw.imageQty !== undefined
-                            ? num(raw.imageQty)
-                            : undefined,
-                    totalUsd:
-                        raw.totalUsd !== undefined
-                            ? num(raw.totalUsd)
-                            : undefined,
-                    convertRate:
-                        raw.convertRate !== undefined
-                            ? num(raw.convertRate)
-                            : undefined,
-                    convertedBdt:
-                        raw.convertedBdt !== undefined
-                            ? num(raw.convertedBdt)
-                            : raw.totalUsd !== undefined ||
-                              raw.convertRate !== undefined
-                            ? num(raw.totalUsd) * num(raw.convertRate)
-                            : undefined,
-                    status: raw.status, // “Paid” | “Unpaid”
+                    month: body.month?.toLowerCase(),
+                    clientId: body.clientId,
+                    imageQty: num(body.imageQty),
+                    totalUsd: num(body.totalUsd),
+                    charge: num(body.charge),
+                    receivable: num(body.receivable),
+                    convertRate: num(body.convertRate),
+                    convertedBdt: num(
+                        body.convertedBdt || body.receivable * body.convertRate
+                    ),
+                    status: body.status,
+                    updatedBy: body.userEmail,
+                    updatedAt: new Date(),
                 };
 
-                // ---- Build changes-only $set
-                const allowedFields = [
-                    'month',
-                    'clientId',
-                    'imageQty',
-                    'totalUsd',
-                    'convertRate',
-                    'convertedBdt',
-                    'status',
-                ];
-                const fieldsToUpdate = {};
+                const allowedFields = Object.keys(incoming);
+                const updates = {};
+
                 for (const key of allowedFields) {
                     if (
                         incoming[key] !== undefined &&
                         incoming[key] !== existing[key]
                     ) {
-                        fieldsToUpdate[key] = incoming[key];
+                        updates[key] = incoming[key];
                     }
                 }
 
-                // Nothing to change
-                if (Object.keys(fieldsToUpdate).length === 0) {
+                if (!Object.keys(updates).length) {
                     return res.status(400).json({
                         success: false,
                         message: 'No valid fields changed.',
                     });
                 }
 
-                // ---- Validate amounts if provided / derived
                 const oldAmount = num(existing.convertedBdt, 0);
-                const newAmount =
-                    fieldsToUpdate.convertedBdt !== undefined
-                        ? num(fieldsToUpdate.convertedBdt, oldAmount)
-                        : oldAmount;
-                if (!Number.isFinite(newAmount) || newAmount < 0) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Invalid earning amount provided',
-                    });
-                }
-
-                const oldStatus = existing.status || 'Unpaid';
-                const newStatus =
-                    fieldsToUpdate.status !== undefined
-                        ? fieldsToUpdate.status
-                        : oldStatus;
-
-                // ---- Compute main-balance delta safely based on status transition
-                // Scenarios:
-                // 1) Paid -> Paid: diff = (new - old)
-                // 2) Unpaid -> Paid: diff = +new
-                // 3) Paid -> Unpaid: diff = -old
-                // 4) Unpaid -> Unpaid: diff = 0
-                let balanceDiff = 0;
-                if (oldStatus === 'Paid' && newStatus === 'Paid') {
-                    // amount changed?
-                    if (newAmount !== oldAmount)
-                        balanceDiff = newAmount - oldAmount;
-                } else if (oldStatus === 'Unpaid' && newStatus === 'Paid') {
-                    balanceDiff = newAmount;
-                } else if (oldStatus === 'Paid' && newStatus === 'Unpaid') {
-                    balanceDiff = -oldAmount;
-                } else {
-                    balanceDiff = 0;
-                }
-
-                // ---- Update document
-                fieldsToUpdate.updatedAt = new Date();
-                const updateResult = await earningsCollections.updateOne(
-                    { _id: new ObjectId(id) },
-                    { $set: fieldsToUpdate }
+                const newAmount = num(
+                    updates.convertedBdt ?? existing.convertedBdt,
+                    oldAmount
                 );
 
-                if (updateResult.modifiedCount === 0) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Earning update failed. No changes applied.',
-                    });
-                }
+                const oldStatus = existing.status || 'Unpaid';
+                const newStatus = updates.status ?? oldStatus;
 
-                // ---- Side-effects: Main Balance & Main Transactions (only if diff != 0)
+                let balanceDiff = 0;
+                if (
+                    oldStatus === 'Paid' &&
+                    newStatus === 'Paid' &&
+                    newAmount !== oldAmount
+                )
+                    balanceDiff = newAmount - oldAmount;
+                else if (oldStatus === 'Unpaid' && newStatus === 'Paid')
+                    balanceDiff = newAmount;
+                else if (oldStatus === 'Paid' && newStatus === 'Unpaid')
+                    balanceDiff = -oldAmount;
+
+                await earningsCollections.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: updates }
+                );
+
                 if (balanceDiff !== 0) {
                     await mainBalanceCollections.updateOne(
                         {},
@@ -3907,126 +3843,39 @@ async function run() {
 
                     await mainTransactionCollections.insertOne({
                         amount: Math.abs(balanceDiff),
-                        note:
-                            balanceDiff > 0
-                                ? `Earning adjustment (+) for ${
-                                      existing.clientId ||
-                                      fieldsToUpdate.clientId ||
-                                      'Unknown Client'
-                                  }`
-                                : `Earning adjustment (−) for ${
-                                      existing.clientId ||
-                                      fieldsToUpdate.clientId ||
-                                      'Unknown Client'
-                                  }`,
-                        date: new Date(),
                         type:
                             balanceDiff > 0
                                 ? 'Adjustment (+)'
                                 : 'Adjustment (-)',
+                        note:
+                            balanceDiff > 0
+                                ? `Earning increased by ৳${balanceDiff} for Client_${incoming.clientId}`
+                                : `Earning decreased by ৳${Math.abs(
+                                      balanceDiff
+                                  )} for Client_${incoming.clientId}`,
+                        date: new Date(),
                         meta: {
-                            earningId: id,
+                            id,
                             oldStatus,
                             newStatus,
                             oldAmount,
                             newAmount,
-                            month: existing.month || fieldsToUpdate.month,
+                            updatedBy: body.userEmail,
                         },
                     });
                 }
 
-                // ---- Optional: keep unpaidCollections in sync (if you track monthly unpaid buckets)
-                // We compute old/new month buckets safely.
-                // NOTE: this assumes you aggregated per (month, year) somewhere. If you store `year` in the doc, use it; else derive from `existing.date`.
-                /*
-    const dhakaNow = new Date(); // if you have a date on the doc, compute year from there
-    const year = (existing.year) ? existing.year : new Date().getFullYear().toString();
-
-    const oldMonth = existing.month;
-    const newMonth = fieldsToUpdate.month || oldMonth;
-
-    if (oldStatus === 'Unpaid' && newStatus === 'Unpaid') {
-      // amount change within unpaid: adjust same/new bucket
-      if (oldMonth === newMonth && newAmount !== oldAmount) {
-        await unpaidCollections.updateOne(
-          { month: oldMonth, year },
-          { $inc: { totalConvertedBdt: (newAmount - oldAmount) } },
-          { upsert: true }
-        );
-      } else if (oldMonth !== newMonth) {
-        // remove from old, add to new
-        await unpaidCollections.updateOne(
-          { month: oldMonth, year },
-          { $inc: { totalConvertedBdt: -oldAmount } },
-          { upsert: true }
-        );
-        await unpaidCollections.updateOne(
-          { month: newMonth, year },
-          { $inc: { totalConvertedBdt: newAmount }, $setOnInsert: { status: 'Unpaid' } },
-          { upsert: true }
-        );
-      }
-    } else if (oldStatus === 'Unpaid' && newStatus === 'Paid') {
-      // remove from unpaid
-      await unpaidCollections.updateOne(
-        { month: oldMonth, year },
-        { $inc: { totalConvertedBdt: -oldAmount } },
-        { upsert: true }
-      );
-    } else if (oldStatus === 'Paid' && newStatus === 'Unpaid') {
-      // add to unpaid new month bucket
-      await unpaidCollections.updateOne(
-        { month: newMonth, year },
-        { $inc: { totalConvertedBdt: newAmount }, $setOnInsert: { status: 'Unpaid' } },
-        { upsert: true }
-      );
-    }
-    */
-
-                // ---- Optional: monthlyProfitCollections sync (decide your business rule: Paid only vs both)
-                // If you ONLY want Paid to count towards profit:
-                /*
-    if (oldStatus === 'Paid' && newStatus === 'Paid' && newAmount !== oldAmount) {
-      await monthlyProfitCollections.updateOne(
-        { month: (existing.month || fieldsToUpdate.month), year },
-        { $inc: { earnings: (newAmount - oldAmount), profit: (newAmount - oldAmount), remaining: (newAmount - oldAmount) } },
-        { upsert: true }
-      );
-    } else if (oldStatus === 'Unpaid' && newStatus === 'Paid') {
-      await monthlyProfitCollections.updateOne(
-        { month: (fieldsToUpdate.month || existing.month), year },
-        { $inc: { earnings: newAmount, profit: newAmount, remaining: newAmount } },
-        { upsert: true }
-      );
-    } else if (oldStatus === 'Paid' && newStatus === 'Unpaid') {
-      await monthlyProfitCollections.updateOne(
-        { month: (fieldsToUpdate.month || existing.month), year },
-        { $inc: { earnings: -oldAmount, profit: -oldAmount, remaining: -oldAmount } },
-        { upsert: true }
-      );
-    }
-    */
-
-                return res.status(200).json({
+                res.status(200).json({
                     success: true,
                     message: 'Earning updated successfully',
-                    changedFields: fieldsToUpdate,
-                    previous: {
-                        status: oldStatus,
-                        amount: oldAmount,
-                    },
-                    updated: {
-                        status: newStatus,
-                        amount: newAmount,
-                    },
-                    balanceDiff, // what actually hit the main balance (can be 0)
+                    updated: updates,
+                    balanceDiff,
                 });
             } catch (error) {
-                console.error('❌ Error updating earning:', error);
-                return res.status(500).json({
+                console.error('❌ updateEarnings error:', error);
+                res.status(500).json({
                     success: false,
-                    message: 'Failed to update earning',
-                    error: error.message,
+                    message: error.message,
                 });
             }
         });
