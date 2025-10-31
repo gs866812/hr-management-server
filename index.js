@@ -831,6 +831,44 @@ async function run() {
             }
         });
 
+        app.put('/update-client', async (req, res) => {
+            try {
+                const { clientID, name, companyName, address } = req.body;
+
+                if (!clientID) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Client ID is required.',
+                    });
+                }
+
+                const result = await clientCollections.findOneAndUpdate(
+                    { clientID: String(clientID) },
+                    { $set: { name, companyName, address } },
+                    { returnDocument: 'after' }
+                );
+
+                if (!result) {
+                    return res.status(404).json({
+                        success: false,
+                        message: 'Client not found.',
+                    });
+                }
+
+                res.status(200).json({
+                    success: true,
+                    message: 'Client updated successfully',
+                    updatedClient: result.value,
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).json({
+                    success: false,
+                    message: 'Internal server error',
+                });
+            }
+        });
+
         // ************************************************************************************************
 
         app.post('/assign-shift', async (req, res) => {
@@ -3594,6 +3632,21 @@ async function run() {
                 res.send(result);
             } catch (error) {
                 res.status(500).json({ message: 'Failed to fetch balance' });
+            }
+        });
+
+        app.get('/getClient/:id', verifyToken, async (req, res) => {
+            try {
+                const id = req.params.id;
+
+                const result = await clientCollections.findOne({
+                    clientID: id,
+                });
+                res.send(result);
+            } catch (error) {
+                res.status(500).json({
+                    message: 'Failed to fetch client info',
+                });
             }
         });
 
