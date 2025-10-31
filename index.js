@@ -3635,7 +3635,7 @@ async function run() {
             }
         });
 
-        app.get('/getClient/:id', verifyToken, async (req, res) => {
+        app.get('/getClient/:id', async (req, res) => {
             try {
                 const id = req.params.id;
 
