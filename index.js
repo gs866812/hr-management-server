@@ -833,7 +833,7 @@ async function run() {
 
         app.put('/update-client', async (req, res) => {
             try {
-                const { clientID, name, companyName, address } = req.body;
+                const { clientID, name, address } = req.body;
 
                 if (!clientID) {
                     return res.status(400).json({
@@ -844,7 +844,7 @@ async function run() {
 
                 const result = await clientCollections.findOneAndUpdate(
                     { clientID: String(clientID) },
-                    { $set: { name, companyName, address } },
+                    { $set: { name, address } },
                     { returnDocument: 'after' }
                 );
 
