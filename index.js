@@ -3303,10 +3303,10 @@ async function run() {
                 } = req.query;
 
                 const pageNum = Math.max(parseInt(page, 10) || 1, 1);
-                const pageSize = Math.min(
-                    Math.max(parseInt(size, 10) || 10, 1),
-                    100
-                );
+                const pageSize =
+                    parseInt(size, 10) === 0
+                        ? 10000
+                        : Math.min(Math.max(parseInt(size, 10) || 10, 1), 100);
 
                 const match = {};
                 if (clientId) match.clientID = String(clientId).trim();
