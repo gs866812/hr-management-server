@@ -411,6 +411,69 @@ async function run() {
         // ******************************************************************************************
         const date = moment(new Date()).format('DD-MMM-YYYY');
 
+        const invoiceCollection = database.collection('invoiceCounter');
+
+        // 🧠 Helper to format invoice number like WB-000001
+        function formatInvoiceNumber(num) {
+            return `WB-${num.toString().padStart(6, '0')}`;
+        }
+
+        // invoice number
+        app.get('/invoice-number', async (req, res) => {
+            try {
+                const doc = await invoiceCollection.findOne({
+                    _id: 'invoice-sequence',
+                });
+
+                if (!doc) {
+                    // If not found, create first document
+                    await invoiceCollection.insertOne({
+                        _id: 'invoice-sequence',
+                        currentNumber: 0,
+                    });
+                    return res.json({
+                        success: true,
+                        invoiceNumber: formatInvoiceNumber(0),
+                    });
+                }
+
+                res.json({
+                    success: true,
+                    invoiceNumber: formatInvoiceNumber(doc.currentNumber),
+                });
+            } catch (error) {
+                console.error('❌ GET invoice-number error:', error);
+                res.status(500).json({
+                    success: false,
+                    message: 'Failed to get invoice number',
+                    error: error.message,
+                });
+            }
+        });
+
+        // ✅ POST — increment and return next invoice number
+        app.post('/invoice-number', async (req, res) => {
+            try {
+                const result = await invoiceCollection.findOneAndUpdate(
+                    { _id: 'invoice-sequence' },
+                    { $inc: { currentNumber: 1 } },
+                    { upsert: true, returnDocument: 'after' }
+                );
+
+                const nextNumber = result.value?.currentNumber || 0;
+                res.json({
+                    success: true,
+                    invoiceNumber: formatInvoiceNumber(nextNumber),
+                });
+            } catch (error) {
+                console.error('❌ POST invoice-number error:', error);
+                res.status(500).json({
+                    success: false,
+                    message: 'Failed to increment invoice number',
+                    error: error.message,
+                });
+            }
+        });
         // *******************************************************************************************
         app.post('/addExpense', async (req, res) => {
             try {
@@ -738,7 +801,7 @@ async function run() {
                     { email },
                     {
                         $set: {
-                            status: "Active",
+                            status: 'Active',
                         },
                     },
                     { new: true }
