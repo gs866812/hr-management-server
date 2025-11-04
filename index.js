@@ -607,29 +607,156 @@ async function run() {
         // ************************************************************************************************
         app.post('/registerEmployees', async (req, res) => {
             try {
-                const employeeData = req.body;
-                const email = req.body.email;
-                // console.log(employeeData);
+                const raw = req.body;
+                const email = String(raw.email).trim().toLowerCase();
 
-                await userCollections.insertOne({
-                    email: email,
-                    role: 'employee',
-                    userName: '',
-                    profilePic: '',
+                if (!email)
+                    return res
+                        .status(400)
+                        .json({ success: false, message: 'Email is required' });
+                if (!raw.fullName)
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Full name is required',
+                    });
+                if (!raw.designation)
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Designation is required',
+                    });
+
+                // Delete password if someone passes it
+                if (raw.password) delete raw.password;
+
+                const existsInEmployees = await employeeCollections.findOne({
+                    email,
                 });
-                const result = await employeeCollections.insertOne(
-                    employeeData
+                const existsInUsers = await userCollections.findOne({ email });
+
+                if (existsInEmployees) {
+                    return res.status(409).json({
+                        success: false,
+                        message: 'Employee already exists',
+                    });
+                }
+
+                // 🧱 Generate activation token (valid for 7 days)
+                const activationToken = jwt.sign(
+                    { email },
+                    process.env.TOKEN_SECRET,
+                    { expiresIn: '7d' }
                 );
 
-                res.send(result);
+                const activationLink = `${process.env.FRONTEND_URL}/create-password?token=${activationToken}`;
+
+                // 🧾 Create employee doc (no password yet)
+                const employeeDoc = {
+                    ...raw,
+                    email,
+                    status: 'pending',
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    activationToken,
+                };
+
+                const userDoc = existsInUsers
+                    ? null
+                    : {
+                          email,
+                          role: raw.role ? raw.role : 'employee',
+                          userName: '',
+                          profilePic: '',
+                      };
+
+                let userInsertedId = null;
+                if (userDoc) {
+                    const u = await userCollections.insertOne(userDoc);
+                    userInsertedId = u.insertedId;
+                }
+
+                try {
+                    const e = await employeeCollections.insertOne(employeeDoc);
+
+                    // ✉️ Send activation email
+                    await mailTransporter.sendMail({
+                        from: process.env.EMAIL_FROM,
+                        to: email,
+                        subject: 'Set up your Web Briks account password',
+                        html: `
+                    <div style="font-family:sans-serif;">
+                        <h2>Welcome to Web Briks, ${raw.fullName}!</h2>
+                        <p>You’ve been added as a new ${raw.designation}. Please set your password to activate your account:</p>
+                        <a href="${activationLink}" target="_blank"
+                            style="display:inline-block;padding:10px 18px;background:#009999;color:#fff;text-decoration:none;border-radius:6px;margin-top:12px;">
+                            Create Password
+                        </a>
+                        <p style="margin-top:20px;color:#555;">This link will expire in 7 days.</p>
+                    </div>
+                `,
+                    });
+
+                    return res.send({
+                        success: true,
+                        message:
+                            'Employee registered and activation email sent.',
+                        insertedId: e.insertedId,
+                    });
+                } catch (e) {
+                    if (userInsertedId) {
+                        await userCollections.deleteOne({
+                            _id: userInsertedId,
+                        });
+                    }
+                    throw e;
+                }
             } catch (error) {
-                res.status(500).json({
+                console.error('❌ registerEmployees error:', error);
+                return res.status(500).json({
                     success: false,
                     message: 'Failed to register employee',
                     error: error.message,
                 });
             }
         });
+
+        app.post('/activate-user', async (req, res) => {
+            try {
+                const { email, firebaseUid } = req.body;
+                const user = await userCollections.findOneAndUpdate(
+                    { email },
+                    {
+                        $set: {
+                            emailVerified: true,
+                            isActive: true,
+                            firebaseUid,
+                        },
+                    },
+                    { new: true }
+                );
+
+                await employeeCollections.findOneAndUpdate(
+                    { email },
+                    {
+                        $set: {
+                            status: "Active",
+                        },
+                    },
+                    { new: true }
+                );
+                if (!user)
+                    return res
+                        .status(404)
+                        .json({ success: false, message: 'User not found' });
+
+                return res.json({ success: true, message: 'User activated' });
+            } catch (err) {
+                console.error(err);
+                return res
+                    .status(500)
+                    .json({ success: false, message: 'Server error' });
+            }
+        });
+
         // ************************************************************************************************
         // at top of your index.js (if not already)
         app.post('/addEarnings', async (req, res) => {
