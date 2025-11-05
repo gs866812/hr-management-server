@@ -4649,7 +4649,6 @@ async function run() {
                 const { month, year, transferAmount, userName, useYearly } =
                     req.body;
                 const date = new Date();
-                console.log(year)
 
                 let availableBalance = 0;
 
