@@ -4646,25 +4646,104 @@ async function run() {
         // ************************************************************************************************
         app.post('/transferMonthlyProfit', async (req, res) => {
             try {
-                const { month, year, transferAmount, userName } = req.body;
+                const { month, year, transferAmount, userName, useYearly } =
+                    req.body;
                 const date = new Date();
+                console.log(year)
 
-                const monthDoc = await monthlyProfitCollections.findOne({
-                    month,
-                    year,
-                });
-                if (!monthDoc) {
-                    return res.json({
-                        message: `No profit record found for ${month} ${year}`,
+                let availableBalance = 0;
+
+                if (useYearly) {
+                    // ✅ Get ALL months of that year, ignore the specific month
+                    const yearlyDocs = await monthlyProfitCollections
+                        .find({ year: String(year) })
+                        .toArray();
+
+                    if (!yearlyDocs.length) {
+                        return res.json({
+                            message: `No yearly profit records found for ${year}`,
+                        });
+                    }
+
+                    // ✅ Sum only positive remaining balances
+                    availableBalance = yearlyDocs.reduce(
+                        (sum, doc) =>
+                            sum + Math.max(parseFloat(doc.remaining) || 0, 0),
+                        0
+                    );
+
+                    if (availableBalance < parseFloat(transferAmount)) {
+                        return res.json({
+                            message: `Insufficient yearly profit balance. Available: ${availableBalance}, Requested: ${transferAmount}`,
+                        });
+                    }
+
+                    // ✅ Deduct proportionally from months that have remaining > 0
+                    let remainingToDeduct = parseFloat(transferAmount);
+
+                    for (const doc of yearlyDocs) {
+                        if (remainingToDeduct <= 0) break;
+                        const available = Math.max(
+                            parseFloat(doc.remaining) || 0,
+                            0
+                        );
+                        if (available <= 0) continue;
+
+                        const deduct = Math.min(remainingToDeduct, available);
+                        await monthlyProfitCollections.updateOne(
+                            { _id: doc._id },
+                            {
+                                $inc: { remaining: -deduct },
+                                $push: {
+                                    shared: {
+                                        date,
+                                        amount: deduct,
+                                        note: `Part of yearly transfer ${year}`,
+                                        by: userName,
+                                    },
+                                },
+                            }
+                        );
+                        remainingToDeduct -= deduct;
+                    }
+                } else {
+                    // 🔹 Default: monthly transfer
+                    const monthDoc = await monthlyProfitCollections.findOne({
+                        month,
+                        year,
                     });
+                    if (!monthDoc) {
+                        return res.json({
+                            message: `No profit record found for ${month} ${year}`,
+                        });
+                    }
+
+                    if (
+                        parseFloat(monthDoc.profit) < parseFloat(transferAmount)
+                    ) {
+                        return res.json({
+                            message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${transferAmount}`,
+                        });
+                    }
+
+                    availableBalance = monthDoc.profit;
+
+                    await monthlyProfitCollections.updateOne(
+                        { month, year },
+                        {
+                            $inc: { remaining: -transferAmount },
+                            $push: {
+                                shared: {
+                                    date,
+                                    amount: parseFloat(transferAmount),
+                                    by: userName,
+                                },
+                            },
+                        }
+                    );
                 }
 
-                if (parseFloat(monthDoc.profit) < parseFloat(transferAmount)) {
-                    return res.json({
-                        message: `Insufficient profit balance. Available: ${monthDoc.profit}, Requested: ${transferAmount}`,
-                    });
-                }
-
+                // 🔹 Common: record profit transfer
                 const shareholder = await shareHoldersCollections.findOne({
                     email: 'asadexpert1@gmail.com',
                 });
@@ -4672,37 +4751,27 @@ async function run() {
                 const result = await profitShareCollections.insertOne({
                     name: shareholder?.shareHoldersName || '',
                     mobile: shareholder?.mobile || '',
-                    email: 'asadexpert1@gmail.com',
+                    email: shareholder?.email || 'asadexpert1@gmail.com',
                     transferProfitBalance: parseFloat(transferAmount),
-                    totalProfitBalance: parseFloat(monthDoc.profit),
-                    month,
+                    totalProfitBalance: parseFloat(availableBalance),
+                    month: month,
                     year,
                     date,
                     userName,
                 });
 
-                await monthlyProfitCollections.updateOne(
-                    { month, year },
-                    {
-                        $inc: { remaining: -transferAmount },
-                        $push: {
-                            shared: {
-                                date,
-                                amount: parseFloat(transferAmount),
-                            },
-                        },
-                    }
-                );
-
                 res.send({
-                    message: 'Profit transfer successfully',
+                    message: useYearly
+                        ? '✅ Yearly profit transfer successful'
+                        : '✅ Monthly profit transfer successful',
                     insertedId: result.insertedId,
                 });
             } catch (error) {
                 console.error(error);
-                res.json({ message: 'Failed to transfer monthly profit' });
+                res.json({ message: '❌ Failed to transfer profit' });
             }
         });
+
         // ************************************************************************************************
         // duplicate route
         // app.get('/calculateMonthlyProfit', async (req, res) => {
