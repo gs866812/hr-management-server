@@ -3564,6 +3564,37 @@ async function run() {
                                 { $skip: (pageNum - 1) * pageSize },
                                 { $limit: pageSize },
                                 {
+                                    $addFields: {
+                                        date: {
+                                            $cond: [
+                                                {
+                                                    $eq: [
+                                                        { $type: '$date' },
+                                                        'string',
+                                                    ],
+                                                },
+                                                { $toDate: '$date' },
+                                                '$date',
+                                            ],
+                                        },
+                                        orderDeadLine: {
+                                            $cond: [
+                                                {
+                                                    $eq: [
+                                                        {
+                                                            $type: '$orderDeadLine',
+                                                        },
+                                                        'string',
+                                                    ],
+                                                },
+                                                { $toDate: '$orderDeadLine' },
+                                                '$orderDeadLine',
+                                            ],
+                                        },
+                                    },
+                                },
+
+                                {
                                     $project: {
                                         _id: 1,
                                         clientID: 1,
