@@ -21,7 +21,7 @@ const mailTransporter = nodemailer.createTransport({
 
 employeeRoute.post('/add-employee', async (req, res) => {
     try {
-        const { email, eid, salary, role } = req.body;
+        const { email, eid, salary, role, branch } = req.body;
 
         if (!email || !eid || !salary || !role) {
             return res.status(400).json({
@@ -67,6 +67,7 @@ employeeRoute.post('/add-employee', async (req, res) => {
             eid,
             salary,
             role,
+            branch,
             status: 'pending',
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -87,6 +88,7 @@ employeeRoute.post('/add-employee', async (req, res) => {
                 email: normalizedEmail,
                 role,
                 username,
+                branch,
                 createdAt: new Date(),
                 updatedAt: new Date(),
                 isActive: false,

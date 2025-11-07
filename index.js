@@ -1120,6 +1120,7 @@ async function run() {
                                 email: emp.email,
                                 shiftName: shift,
                                 entryTime,
+                                branch: emp.branch,
                             });
                             inserted.push(emp);
                         } else if (existing.shiftName !== shift) {
@@ -4221,34 +4222,35 @@ async function run() {
                         .send({ message: 'Forbidden Access' });
                 }
 
-                const query = search
-                    ? {
-                          $or: [
-                              { fullName: { $regex: search, $options: 'i' } },
-                              { email: { $regex: search, $options: 'i' } },
-                              {
-                                  phoneNumber: {
-                                      $regex: search,
-                                      $options: 'i',
-                                  },
-                              },
-                              {
-                                  designation: {
-                                      $regex: search,
-                                      $options: 'i',
-                                  },
-                              },
-                          ],
-                      }
-                    : {};
+                const userInfo = await userCollections.findOne({ email });
 
-                const findEmployeeList = await employeeCollections
+                if (!userInfo) {
+                    return res.status(404).json({ message: 'User not found' });
+                }
+
+                let query = {};
+
+                if (userInfo.role === 'teamLeader' && userInfo.branch) {
+                    query.branch = userInfo.branch;
+                }
+
+                if (search) {
+                    query.$or = [
+                        { fullName: { $regex: search, $options: 'i' } },
+                        { email: { $regex: search, $options: 'i' } },
+                        { phoneNumber: { $regex: search, $options: 'i' } },
+                        { designation: { $regex: search, $options: 'i' } },
+                    ];
+                }
+
+                const employees = await employeeCollections
                     .find(query)
                     .sort({ _id: -1 })
                     .toArray();
 
-                res.send(findEmployeeList);
+                res.send(employees);
             } catch (error) {
+                console.error(error);
                 res.status(500).json({
                     message: 'Failed to fetch employee list',
                 });
@@ -6036,4 +6038,5 @@ run().catch(console.dir);
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
+
 // ************************************************************************************************
