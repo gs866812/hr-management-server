@@ -17,7 +17,7 @@ router.post('/new-shift', async (req, res) => {
             lateAfterMinutes,
             absentAfterMinutes,
             allowOT,
-            userEmail
+            userEmail,
         } = req.body;
 
         const userDoc = await userCollections.findOne(
@@ -74,6 +74,64 @@ router.post('/new-shift', async (req, res) => {
         return res.status(500).json({
             success: false,
             message: 'Failed to create shift',
+            error: error.message,
+        });
+    }
+});
+
+router.get('/get-shifts', async (req, res) => {
+    try {
+        const userEmail = req.query.userEmail;
+
+        const userDoc = await userCollections.findOne(
+            { email: userEmail },
+            { projection: { role: 1, branch: 1 } }
+        );
+
+        if (!userDoc) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: user not found.',
+            });
+        }
+
+        let query = {};
+
+        const allowedAdminRoles = ['admin', 'hr-admin', 'developer'];
+        const role = userDoc.role?.toLowerCase();
+
+        if (role === 'teamleader' || role === 'team-leader') {
+            query.branch = userDoc.branch;
+        } else if (allowedAdminRoles.includes(role)) {
+            if (req.query.branch) {
+                query.branch = req.query.branch;
+            }
+        } else {
+            return res.status(403).json({
+                success: false,
+                message: 'You are not authorized to view shift data.',
+            });
+        }
+
+        if (req.query.search) {
+            query.shiftName = { $regex: req.query.search, $options: 'i' };
+        }
+
+        const shifts = await shiftCollection
+            .find(query)
+            .sort({ createdAt: -1 })
+            .toArray();
+
+        return res.status(200).json({
+            success: true,
+            total: shifts.length,
+            shifts,
+        });
+    } catch (error) {
+        console.error('Error fetching shifts:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch shifts',
             error: error.message,
         });
     }
