@@ -2828,54 +2828,41 @@ async function run() {
                 const page = parseInt(req.query.page) || 1;
                 const size = parseInt(req.query.size) || 10;
                 const search = req.query.search || '';
+                const branch = req.query.branch?.toLowerCase() || ''; // ✅ normalize lowercase
                 const disablePagination =
                     req.query.disablePagination === 'true';
 
-                let numericSearch = parseFloat(search);
-                numericSearch = isNaN(numericSearch) ? null : numericSearch;
+                const query = {};
 
-                const query = search
-                    ? {
-                          $or: [
-                              { userName: { $regex: new RegExp(search, 'i') } },
-                              {
-                                  expenseName: {
-                                      $regex: new RegExp(search, 'i'),
-                                  },
-                              },
-                              {
-                                  expenseCategory: {
-                                      $regex: new RegExp(search, 'i'),
-                                  },
-                              },
-                              {
-                                  expenseStatus: {
-                                      $regex: new RegExp(search, 'i'),
-                                  },
-                              },
-                              {
-                                  expenseNote: {
-                                      $regex: new RegExp(search, 'i'),
-                                  },
-                              },
-                              {
-                                  expenseDate: {
-                                      $regex: new RegExp(search, 'i'),
-                                  },
-                              },
-                              ...(numericSearch !== null
-                                  ? [{ expenseAmount: numericSearch }]
-                                  : []),
-                          ],
-                      }
-                    : {};
-
-                if (!expenseCollections) {
-                    return res
-                        .status(500)
-                        .json({ message: 'Database connection issue' });
+                // 🔍 Search filter
+                if (search) {
+                    const numericSearch = parseFloat(search);
+                    query.$or = [
+                        { userName: { $regex: new RegExp(search, 'i') } },
+                        { expenseName: { $regex: new RegExp(search, 'i') } },
+                        {
+                            expenseCategory: {
+                                $regex: new RegExp(search, 'i'),
+                            },
+                        },
+                        { expenseStatus: { $regex: new RegExp(search, 'i') } },
+                        { expenseNote: { $regex: new RegExp(search, 'i') } },
+                        { expenseDate: { $regex: new RegExp(search, 'i') } },
+                    ];
+                    if (!isNaN(numericSearch)) {
+                        query.$or.push({ expenseAmount: numericSearch });
+                    }
                 }
-                const allExpense = await expenseCollections.find().toArray();
+
+                // 🏢 Branch filter
+                if (branch && branch !== 'all') {
+                    query.office = branch; // ✅ exact match (you said stored lowercase)
+                }
+
+                // 🔧 Now use query everywhere:
+                const allExpense = await expenseCollections
+                    .find(query)
+                    .toArray(); // ✅ filtered allExpense
 
                 let expense;
                 if (disablePagination) {
@@ -2886,17 +2873,18 @@ async function run() {
                 } else {
                     expense = await expenseCollections
                         .find(query)
+                        .sort({ _id: -1 })
                         .skip((page - 1) * size)
                         .limit(size)
-                        .sort({ _id: -1 })
                         .toArray();
                 }
 
                 const count = await expenseCollections.countDocuments(query);
-
                 const category = await categoryCollections.find({}).toArray();
-                res.send({ expense, count, category, allExpense });
+
+                res.status(200).json({ expense, count, category, allExpense });
             } catch (error) {
+                console.error('❌ Error fetching expense:', error);
                 res.status(500).json({
                     message: 'Failed to fetch expense',
                     error: error.message,
