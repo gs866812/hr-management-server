@@ -3929,12 +3929,12 @@ async function run() {
         //getEarnings
         app.get('/getEarnings', verifyToken, async (req, res) => {
             try {
-                const email = req.user.email;
 
                 const page = parseInt(req.query.page) || 1;
                 const size = parseInt(req.query.size) || 10;
                 const search = req.query.search || '';
-                const selectedMonth = req.query.month || '';
+                const selectedMonth = req.query.month.trim() || '';
+                console.log(selectedMonth);
 
                 const query = {
                     ...(search && {
