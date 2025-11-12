@@ -3929,12 +3929,12 @@ async function run() {
         //getEarnings
         app.get('/getEarnings', verifyToken, async (req, res) => {
             try {
-
                 const page = parseInt(req.query.page) || 1;
                 const size = parseInt(req.query.size) || 10;
                 const search = req.query.search || '';
-                const selectedMonth = req.query.month.trim() || '';
-                console.log(selectedMonth);
+                const selectedMonth = (req.query.month || '').trim();
+
+                console.log('🔍 Selected Month:', selectedMonth);
 
                 const query = {
                     ...(search && {
@@ -3945,7 +3945,11 @@ async function run() {
                             { date: { $regex: new RegExp(search, 'i') } },
                         ],
                     }),
-                    ...(selectedMonth && { month: selectedMonth }),
+                    ...(selectedMonth && {
+                        month: {
+                            $regex: new RegExp(`^${selectedMonth}$`, 'i'),
+                        }, // case-insensitive exact match
+                    }),
                 };
 
                 const totalCount = await earningsCollections.countDocuments(
@@ -3958,8 +3962,6 @@ async function run() {
                     .limit(size)
                     .sort({ _id: -1 })
                     .toArray();
-
-                const totalRev = await earningsCollections.find().toArray();
 
                 const totals = await earningsCollections
                     .aggregate([
@@ -3979,7 +3981,6 @@ async function run() {
 
                 res.send({
                     result,
-                    totalRev,
                     count: totalCount,
                     totalSummary: {
                         totalImageQty: totals[0]?.totalImageQty || 0,
@@ -3990,12 +3991,14 @@ async function run() {
                     },
                 });
             } catch (error) {
+                console.error(error);
                 res.status(500).json({
                     message: 'Failed to fetch earnings',
                     error: error.message,
                 });
             }
         });
+
         // ************************************************************************************************
         // Get single earning by ID
         app.get('/getSingleEarning/:id', async (req, res) => {
