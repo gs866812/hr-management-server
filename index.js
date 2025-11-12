@@ -6003,6 +6003,107 @@ async function run() {
         // fuyad's
         app.use(router);
 
+        // ✅ Add this near your other app.get routes
+
+        app.get('/generate-monthly-profit', async (req, res) => {
+            try {
+                const profitByMonth = {};
+
+                const earnings = await earningsCollections.find().toArray();
+                const expenses = await expenseCollections.find().toArray();
+
+                // 🔹 Group earnings by month-year
+                for (const earn of earnings) {
+                    const date = new Date(earn.date || `${earn.month} 1, 2025`);
+                    const month = date.getMonth() + 1;
+                    const year = date.getFullYear();
+                    const key = `${month}-${year}`;
+
+                    if (!profitByMonth[key])
+                        profitByMonth[key] = { earnings: 0, expense: 0 };
+                    profitByMonth[key].earnings +=
+                        Number(earn.convertedBdt) || 0;
+                }
+
+                // 🔹 Group expenses by month-year
+                for (const exp of expenses) {
+                    const date = new Date(exp.expenseDate);
+                    const month = date.getMonth() + 1;
+                    const year = date.getFullYear();
+                    const key = `${month}-${year}`;
+
+                    if (!profitByMonth[key])
+                        profitByMonth[key] = { earnings: 0, expense: 0 };
+                    profitByMonth[key].expense +=
+                        Number(exp.expenseAmount) || 0;
+                }
+
+                // 🔹 Format documents
+                const MONTHS = [
+                    'January',
+                    'February',
+                    'March',
+                    'April',
+                    'May',
+                    'June',
+                    'July',
+                    'August',
+                    'September',
+                    'October',
+                    'November',
+                    'December',
+                ];
+
+                const documents = Object.entries(profitByMonth).map(
+                    ([key, val]) => {
+                        const [monthNum, year] = key.split('-');
+                        const monthName = MONTHS[Number(monthNum) - 1];
+                        const profit = +(val.earnings - val.expense).toFixed(2);
+                        return {
+                            month: monthName,
+                            year,
+                            earnings: +val.earnings.toFixed(2),
+                            expense: +val.expense.toFixed(2),
+                            profit,
+                            remaining: profit,
+                            shared: [],
+                            unpaid: 0,
+                        };
+                    }
+                );
+
+                await monthlyProfitCollections.deleteMany({});
+                await monthlyProfitCollections.insertMany(documents);
+
+                res.send({
+                    message: '✅ Monthly profit calculated successfully',
+                    data: documents,
+                });
+            } catch (err) {
+                console.error(err);
+                res.status(500).json({
+                    message: 'Failed to generate monthly profit',
+                    error: err.message,
+                });
+            }
+        });
+
+        // ✅ Fetch for frontend
+        app.get('/get-monthly-profit', async (req, res) => {
+            try {
+                const data = await monthlyProfitCollections
+                    .find()
+                    .sort({ year: 1 })
+                    .toArray();
+                res.send(data);
+            } catch (err) {
+                res.status(500).json({
+                    message: 'Failed to fetch monthly profit',
+                    error: err.message,
+                });
+            }
+        });
+
         // ************************************************************************************************
 
         // ************************************************************************************************
