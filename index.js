@@ -386,6 +386,9 @@ async function run() {
             return 'employee';
         }
 
+        const normalizeEmail = (value) =>
+            String(value || '').trim().toLowerCase();
+
         // ******************************************************************************************
         // put this near your other helpers (after ensureCanPostNotice)
         function norm(role) {
@@ -552,50 +555,96 @@ async function run() {
             }
         });
         // ************************************************************************************************
-        app.post('/addHrBalance', async (req, res) => {
+        app.post('/addHrBalance', verifyToken, async (req, res) => {
             try {
-                const { parseValue, note } = req.body;
+                const { parseValue, note, userEmail } = req.body || {};
+                const amount = Number(parseValue);
+
+                if (!Number.isFinite(amount) || amount <= 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'A positive amount is required',
+                    });
+                }
+
+                const requesterEmail = normalizeEmail(userEmail);
+                if (!requesterEmail) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'User email is required',
+                    });
+                }
+                if (requesterEmail !== req.user.email) {
+                    return res
+                        .status(403)
+                        .json({ success: false, message: 'Forbidden Access' });
+                }
 
                 const availableBalance = await mainBalanceCollections.findOne();
 
-                if (availableBalance.mainBalance >= parseValue) {
-                    await hrTransactionCollections.insertOne({
-                        value: parseValue,
-                        note,
-                        date,
-                        type: 'In',
+                if (
+                    !availableBalance ||
+                    typeof availableBalance.mainBalance !== 'number'
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            'Main balance is not initialized. Please add funds first.',
                     });
+                }
 
-                    let existingBalance = await hrBalanceCollections.findOne();
+                if (availableBalance.mainBalance < amount) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Not enough funds',
+                    });
+                }
 
-                    if (existingBalance) {
-                        await hrBalanceCollections.updateOne(
-                            {},
-                            {
-                                $inc: { balance: parseValue },
-                            }
-                        );
-                    } else {
-                        // Insert a new document if no balance exists
-                        await hrBalanceCollections.insertOne({
-                            balance: parseValue,
-                        });
-                    }
+                const now = new Date();
+                await hrTransactionCollections.insertOne({
+                    value: amount,
+                    note,
+                    date: now,
+                    type: 'In',
+                    createdBy: requesterEmail,
+                });
 
-                    // deduct the amount from main balance
-                    await mainBalanceCollections.updateOne(
-                        {},
+                const existingBalance = await hrBalanceCollections.findOne();
+
+                if (existingBalance) {
+                    await hrBalanceCollections.updateOne(
+                        { _id: existingBalance._id },
                         {
-                            $inc: { mainBalance: -parseValue },
+                            $inc: { balance: amount },
+                            $set: { updatedAt: now },
                         }
                     );
-
-                    res.status(200).json({ message: 'success' });
                 } else {
-                    res.json({ message: 'Not enough funds' });
+                    // Insert a new document if no balance exists
+                    await hrBalanceCollections.insertOne({
+                        balance: amount,
+                        createdAt: now,
+                        updatedAt: now,
+                    });
                 }
+
+                // deduct the amount from main balance
+                await mainBalanceCollections.updateOne(
+                    {},
+                    {
+                        $inc: { mainBalance: -amount },
+                        $set: { updatedAt: now },
+                    },
+                    { upsert: true }
+                );
+
+                res.status(200).json({
+                    success: true,
+                    message: 'Balance added successfully',
+                });
             } catch (error) {
                 res.status(500).json({
+                    success: false,
                     message: 'Failed to add balance',
                     error: error.message,
                 });
@@ -1987,42 +2036,80 @@ async function run() {
         });
 
         // *****************************************************************************************
-        app.put('/returnHrBalance', async (req, res) => {
+        app.put('/returnHrBalance', verifyToken, async (req, res) => {
             try {
-                const { parseValue, note } = req.body;
+                const { parseValue, note, userEmail } = req.body || {};
+                const amount = Number(parseValue);
+
+                if (!Number.isFinite(amount) || amount <= 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'A positive amount is required',
+                    });
+                }
+
+                const requesterEmail = normalizeEmail(userEmail);
+                if (!requesterEmail) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'User email is required',
+                    });
+                }
+                if (requesterEmail !== req.user.email) {
+                    return res
+                        .status(403)
+                        .json({ success: false, message: 'Forbidden Access' });
+                }
 
                 const availableBalance = await hrBalanceCollections.findOne();
 
-                if (availableBalance.balance >= parseValue) {
-                    await hrBalanceCollections.updateOne(
-                        {},
-                        {
-                            $inc: { balance: -parseValue },
-                        }
-                    );
-
-                    // add the amount in main balance
-                    await mainBalanceCollections.updateOne(
-                        {},
-                        {
-                            $inc: { mainBalance: parseValue },
-                        }
-                    );
-
-                    await hrTransactionCollections.insertOne({
-                        value: parseValue,
-                        note,
-                        date,
-                        type: 'Out',
+                if (
+                    !availableBalance ||
+                    typeof availableBalance.balance !== 'number' ||
+                    availableBalance.balance < amount
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'No available funds to return',
                     });
-
-                    res.status(200).json({ message: 'success' });
-                } else {
-                    res.json({ message: 'unsuccess' });
                 }
+
+                const now = new Date();
+
+                await hrBalanceCollections.updateOne(
+                    { _id: availableBalance._id },
+                    {
+                        $inc: { balance: -amount },
+                        $set: { updatedAt: now },
+                    }
+                );
+
+                // add the amount in main balance
+                await mainBalanceCollections.updateOne(
+                    {},
+                    {
+                        $inc: { mainBalance: amount },
+                        $set: { updatedAt: now },
+                    },
+                    { upsert: true }
+                );
+
+                await hrTransactionCollections.insertOne({
+                    value: amount,
+                    note,
+                    date: now,
+                    type: 'Out',
+                    createdBy: requesterEmail,
+                });
+
+                res.status(200).json({
+                    success: true,
+                    message: 'Balance returned successfully',
+                });
             } catch (error) {
                 res.status(500).json({
-                    message: 'Failed to add balance',
+                    success: false,
+                    message: 'Failed to return balance',
                     error: error.message,
                 });
             }
@@ -4004,9 +4091,21 @@ async function run() {
 
         // ************************************************************************************************
         // Get single earning by ID
-        app.get('/getSingleEarning/:id', async (req, res) => {
+        app.get('/getSingleEarning/:id', verifyToken, async (req, res) => {
             try {
                 const { id } = req.params;
+                const requesterEmail = normalizeEmail(req.query.userEmail);
+                if (!requesterEmail) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'User email is required',
+                    });
+                }
+                if (requesterEmail !== req.user.email) {
+                    return res
+                        .status(403)
+                        .json({ success: false, message: 'Forbidden Access' });
+                }
 
                 // Validate ObjectId
                 if (!ObjectId.isValid(id)) {
@@ -4047,9 +4146,23 @@ async function run() {
 
         // ************************************************************************************************
         // Update earning by ID (with secure validation)
-        app.put('/updateEarnings/:id', async (req, res) => {
+        app.put('/updateEarnings/:id', verifyToken, async (req, res) => {
             try {
                 const { id } = req.params;
+                const requesterEmail = normalizeEmail(req.body?.userEmail);
+
+                if (!requesterEmail) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'User email is required',
+                    });
+                }
+
+                if (requesterEmail !== req.user.email) {
+                    return res
+                        .status(403)
+                        .json({ success: false, message: 'Forbidden Access' });
+                }
 
                 if (!ObjectId.isValid(id))
                     return res.status(400).json({
@@ -4069,19 +4182,59 @@ async function run() {
                 const num = (v, def = 0) =>
                     Number.isFinite(Number(v)) ? Number(v) : def;
 
+                const normalizedMonth = body.month
+                    ? String(body.month).trim().toLowerCase()
+                    : undefined;
+                const month =
+                    normalizedMonth && normalizedMonth.length
+                        ? normalizedMonth.charAt(0).toUpperCase() +
+                          normalizedMonth.slice(1)
+                        : undefined;
+
+                const totalUsd = num(body.totalUsd);
+                const charge = num(body.charge);
+                const convertRate = num(body.convertRate);
+                const requestedReceivable =
+                    body.receivable !== undefined
+                        ? num(body.receivable)
+                        : totalUsd - charge;
+                const safeReceivable = Number.isFinite(requestedReceivable)
+                    ? Math.max(requestedReceivable, 0)
+                    : 0;
+
+                const calculatedConverted =
+                    convertRate > 0
+                        ? +(safeReceivable * convertRate).toFixed(2)
+                        : safeReceivable;
+                const convertedBdt =
+                    body.convertedBdt !== undefined
+                        ? num(body.convertedBdt, calculatedConverted)
+                        : calculatedConverted;
+
+                const normalizedStatus =
+                    typeof body.status === 'string'
+                        ? body.status.trim().toLowerCase()
+                        : undefined;
+                const status =
+                    normalizedStatus === 'paid'
+                        ? 'Paid'
+                        : normalizedStatus === 'unpaid'
+                        ? 'Unpaid'
+                        : undefined;
+
                 const incoming = {
-                    month: body.month?.toLowerCase(),
-                    clientId: body.clientId,
+                    month,
+                    clientId: body.clientId
+                        ? String(body.clientId).trim()
+                        : undefined,
                     imageQty: num(body.imageQty),
-                    totalUsd: num(body.totalUsd),
-                    charge: num(body.charge),
-                    receivable: num(body.receivable),
-                    convertRate: num(body.convertRate),
-                    convertedBdt: num(
-                        body.convertedBdt || body.receivable * body.convertRate
-                    ),
-                    status: body.status,
-                    updatedBy: body.userEmail,
+                    totalUsd,
+                    charge,
+                    receivable: safeReceivable,
+                    convertRate,
+                    convertedBdt,
+                    status,
+                    updatedBy: requesterEmail,
                     updatedAt: new Date(),
                 };
 
