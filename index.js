@@ -481,7 +481,6 @@ async function run() {
                 const month = moment(expenseData.expenseDate).format('MMMM');
                 const year = moment(expenseData.expenseDate).format('YYYY');
 
-                const mail = req.body.userMail;
                 const existingCategory = await categoryCollections.findOne({
                     expenseCategory: expenseData.expenseCategory,
                 });
@@ -491,7 +490,7 @@ async function run() {
                         expenseCategory: expenseData.expenseCategory,
                     });
                 }
-                const availableBalance = await hrBalanceCollections.findOne();
+
                 const availableMainBalance =
                     await mainBalanceCollections.findOne();
                 const expenseBalance = expenseData.expenseAmount;
@@ -499,7 +498,6 @@ async function run() {
                 const findMonthInMonthlyProfit =
                     await monthlyProfitCollections.findOne({ month, year });
                 if (findMonthInMonthlyProfit) {
-                    // If month already exists, update the earnings and profit
                     await monthlyProfitCollections.updateOne(
                         { month, year },
                         {
@@ -511,7 +509,6 @@ async function run() {
                         }
                     );
                 } else {
-                    // If month does not exist, create a new entry
                     if (availableMainBalance.mainBalance >= expenseBalance) {
                         await monthlyProfitCollections.insertOne({
                             month,
@@ -751,7 +748,7 @@ async function run() {
                         <p>You’ve been added as a new ${raw.designation}. Please set your password to activate your account:</p>
                         <a href="${activationLink}" target="_blank"
                             style="display:inline-block;padding:10px 18px;background:#009999;color:#fff;text-decoration:none;border-radius:6px;margin-top:12px;">
-                            Create Password
+                            Create Password 
                         </a>
                         <p style="margin-top:20px;color:#555;">This link will expire in 7 days.</p>
                     </div>
@@ -854,7 +851,11 @@ async function run() {
                     });
 
                 // 🧮 Normalize & parse
-                const month = String(rawMonth).toLowerCase(); // e.g. "august"
+                // 🧮 Normalize & parse
+                const month =
+                    String(rawMonth).charAt(0).toUpperCase() +
+                    String(rawMonth).slice(1).toLowerCase(); // e.g. "October"
+                // e.g. "august"
                 const usdTotal = Number(totalUsd) || 0;
                 const usdCharge = Number(charge) || 0;
                 const usdReceivable =
