@@ -480,6 +480,9 @@ async function run() {
                 const expenseData = req.body;
                 const month = moment(expenseData.expenseDate).format('MMMM');
                 const year = moment(expenseData.expenseDate).format('YYYY');
+                const transactionDate = new Date();
+                const expenseBalance = Number(expenseData.expenseAmount) || 0;
+                expenseData.expenseAmount = expenseBalance;
 
                 const existingCategory = await categoryCollections.findOne({
                     expenseCategory: expenseData.expenseCategory,
@@ -493,7 +496,6 @@ async function run() {
 
                 const availableMainBalance =
                     await mainBalanceCollections.findOne();
-                const expenseBalance = expenseData.expenseAmount;
 
                 const findMonthInMonthlyProfit =
                     await monthlyProfitCollections.findOne({ month, year });
@@ -535,7 +537,7 @@ async function run() {
                     await mainTransactionCollections.insertOne({
                         amount: expenseBalance,
                         note: expenseData.expenseNote,
-                        date,
+                        date: transactionDate,
                         type: 'Expense',
                     });
                     res.send(addExpense);
