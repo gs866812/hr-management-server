@@ -1,11 +1,144 @@
 const { Router } = require('express');
 const { client } = require('../lib/db');
+const { ObjectId } = require('mongodb');
 
 const router = Router();
 const database = client.db('hrManagement');
 
 const shiftCollection = database.collection('workingShiftList');
 const userCollections = database.collection('userList');
+
+router.put('/update-shift', async (req, res) => {
+    try {
+        const data = req.body;
+
+        const {
+            _id,
+            shiftName,
+            branch,
+            startTime,
+            endTime,
+            userEmail,
+            lateAfterMinutes,
+            absentAfterMinutes,
+            allowOT,
+        } = data;
+
+        if (!_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Shift ID is required.',
+            });
+        }
+
+        if (!shiftName || !branch || !startTime || !endTime) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    'Shift name, branch, startTime, and endTime are required.',
+            });
+        }
+
+        const userDoc = await userCollections.findOne(
+            { email: userEmail },
+            { projection: { role: 1 } }
+        );
+
+        const allowedRoles = ['admin', 'hr-admin', 'developer'];
+        if (!userDoc || !allowedRoles.includes(userDoc.role?.toLowerCase())) {
+            return res.status(403).json({
+                success: false,
+                message:
+                    'Only Admin, HR Admin, or Developer can update a working shift.',
+            });
+        }
+
+        const updateBody = {
+            shiftName,
+            branch,
+            startTime,
+            endTime,
+            lateAfterMinutes,
+            absentAfterMinutes,
+            allowOT,
+        };
+
+        const result = await shiftCollection.findOneAndUpdate(
+            { _id: new ObjectId(_id) },
+            { $set: updateBody },
+            { returnDocument: 'after' }
+        );
+
+        if (!result) {
+            return res.status(404).json({
+                success: false,
+                message: 'Shift not found.',
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Shift "${shiftName}" updated successfully.`,
+            updatedShift: result.value,
+        });
+    } catch (err) {
+        console.error('Update Shift Error:', err);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error.',
+        });
+    }
+});
+
+router.delete('/delete-shift/:id', async (req, res) => {
+    try {
+        const shiftId = req.params.id;
+        const { userEmail } = req.query;
+
+        if (!shiftId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Shift ID is required.',
+            });
+        }
+
+        const userDoc = await userCollections.findOne(
+            { email: userEmail },
+            { projection: { role: 1 } }
+        );
+
+        const allowedRoles = ['admin', 'hr-admin', 'developer'];
+        if (!userDoc || !allowedRoles.includes(userDoc.role?.toLowerCase())) {
+            return res.status(403).json({
+                success: false,
+                message:
+                    'Only Admin, HR Admin, or Developer can delete a working shift.',
+            });
+        }
+
+        const result = await shiftCollection.deleteOne({
+            _id: new ObjectId(shiftId),
+        });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Shift not found.',
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Shift deleted successfully.',
+        });
+    } catch (err) {
+        console.error('Delete Shift Error:', err);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error.',
+        });
+    }
+});
 
 router.post('/new-shift', async (req, res) => {
     try {
